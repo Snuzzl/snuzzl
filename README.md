@@ -1,2 +1,3 @@
 # snuzzl
-Snuzzl development repo
+A wellbeing app
+
