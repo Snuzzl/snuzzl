@@ -1,6 +1,4 @@
-dfgsfsxnxg
 class Account:
-    
     def __init__(self, username):
         # Representation from system requirements
         # Validate values according to valid/invalid representations
@@ -9,6 +7,7 @@ class Account:
 
     def _validateUsername(username):
         pass
+
 
 class AccountManager:
     
