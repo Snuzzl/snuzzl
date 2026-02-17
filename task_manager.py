@@ -12,9 +12,10 @@ class TaskManager:
         self._tasks.append(task)
 
     def remove_task(self, index):
-        # Don't take an index outside the actual length of the tasks array.
-        if index < len(self._tasks):
-            self._tasks.pop(index)
+        # Don't take an index outside the actual length of the tasks array or below 0. -1 wraps around to the end of the list.
+        if index < 0 or index >=len(self._tasks):
+            raise IndexError("Task index out of range")
+        self._tasks.pop(index)
 
     def show_tasks(self):
         # Nicer than just looking at self.tasks in a terminal, we can use this until we get the UI.
@@ -37,6 +38,9 @@ class Task:
         return self._due
     @name.setter
     def name(self,newName):
+        # Tasks must have a name.
+        if not newName or not newName.strip():
+            raise ValueError("Task name cannot be empty")
         self._name = newName
     @description.setter
     def description(self,newDescription):
