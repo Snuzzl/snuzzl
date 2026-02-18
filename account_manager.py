@@ -4,10 +4,12 @@ class AccountManager:
         self.currentUser = "Guest"
         self.accounts = []
 
-    def login(self, username, password):
+    def login(self):
         # If username and hashed password match the values in db then self.currentUser = username
         # Password can be worked out later
         print("---Login Page---")
+        username = input("Enter username: ")
+        password = input("Enter password: ")
         for account in self.accounts:
             if account.username == username and account.password == password:
                 self.currentUser = username
@@ -20,8 +22,7 @@ class AccountManager:
         pass
 
     def logout(self):
-        self.currentUser = "Guest"
-        # Return to login page in UI
+        return self.login()
 
     def createAccount(self, account):
         self.accounts.append(account)
@@ -32,7 +33,7 @@ class AccountManager:
     def deleteAccount(self, username):
         for i, account in enumerate(self.accounts):
             if account.username == username:
-                removed = self.accounts.pop(i)
+                self.accounts.pop(i)
                 print(f"Account '{username}' deleted successfully")
                 if self.currentUser == username:
                     self.currentUser = "Guest"
@@ -127,7 +128,15 @@ def run():
 
     #login test
     print("Logging in as admin")
-    account_manager.login(input("Enter username: "), input("Enter password: "))
+    account_manager.login()
+
+    #test log out
+    print("Logging out")
+    account_manager.logout()
+
+    #test logging back in
+    print("Logging out")
+    account_manager.logout()
 
 if __name__ == "__main__":    
     run()
