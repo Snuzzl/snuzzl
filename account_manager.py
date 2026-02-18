@@ -1,26 +1,44 @@
-
-
-class AccountManager:
-    
+class AccountManager:   
     def __init__(self):
         self.username = None
         self.currentUser = "Guest"
+        self.accounts = []
 
     def login(self, username, password):
         # If username and hashed password match the values in db then self.currentUser = username
         # Password can be worked out later
+        print("---Login Page---")
+        for account in self.accounts:
+            if account.username == username and account.password == password:
+                self.currentUser = username
+                print(f"Hello: {username}")
+                print(account)
+                return True
+            else:
+                print("Invalid username or password")
+                return False
         pass
 
     def logout(self):
         self.currentUser = "Guest"
         # Return to login page in UI
 
-    def createAccount(self, username):
-        self.username = username
-        self.currentUser = username
-    
+    def createAccount(self, account):
+        self.accounts.append(account)
+        self.username = account.username
+        self.currentUser = account.username
+        print(f"Account '{account.username}' created and added to list")
+ 
     def deleteAccount(self, username):
-        pass
+        for i, account in enumerate(self.accounts):
+            if account.username == username:
+                removed = self.accounts.pop(i)
+                print(f"Account '{username}' deleted successfully")
+                if self.currentUser == username:
+                    self.currentUser = "Guest"
+                return True
+        print(f"Account '{username}' not found")
+        return False
 
     def updateEmail():
         pass
@@ -31,6 +49,16 @@ class AccountManager:
     def sync():
         # Sync current user account to db, can be left for later
         pass
+
+    def get_all_accounts(self):
+        return [acc.username for acc in self.accounts]
+
+    def print_all_accounts(self):
+        print("=== All Accounts ===")
+        for account in self.accounts:
+            print(f"- {account.username} ({account.email})")
+        print()
+
 
 class Account:
     def __init__(self, username, email, password):
@@ -56,17 +84,6 @@ class Account:
             raise ValueError("Password must be at least 6 characters long")
         return password
 
-    def create_account(self, username, email, password):
-        try:
-            self.username = self._validateUsername(username)
-            self.email = self._validateEmail(email)
-            self.password = self._validatePassword(password)
-            self.is_active = True
-            return True
-        except ValueError as e:
-            print(f"Account creation failed: {e}")
-            return False
-
     def __str__(self):
         return f"Username: {self.username}\nEmail: {self.email}\nActive: {self.is_active}"
 
@@ -74,12 +91,43 @@ class Account:
         print(self)
 
 
+
+
+#testing
 def run():
     account_manager = AccountManager()
-    account = Account("graceloveslivemusic", "gracie_bear@example.com", "wolfiealice123")
-    account = Account("theleader", "example@example.com", "mrnegative123")
-    account_manager.createAccount(account.username)
-    account.print_details()
+    
+    # Create accounts
+    account1 = Account("test1", "test1@example.com", "test123")
+    account_manager.createAccount(account1)
+    account1.print_details()
+    
+    account2 = Account("admin", "admin@example.com", "admin123")
+    account_manager.createAccount(account2)
+    account2.print_details()
+    
+    account3 = Account("user2", "user2@example.com", "pass456")
+    account_manager.createAccount(account3)
+    
+    # Print all accounts
+    account_manager.print_all_accounts()
+    
+    # Delete an account
+    print("Deleting test1")
+    account_manager.deleteAccount("test1")
+    
+    #pritning accounts
+    account_manager.print_all_accounts()
+    print("All usernames:", account_manager.get_all_accounts())
+
+    #test for deleting a none existent account
+    account_manager.deleteAccount("test1")
+    account_manager.print_all_accounts()
+
+
+    #login test
+    print("Logging in as admin")
+    account_manager.login(input("Enter username: "), input("Enter password: "))
 
 if __name__ == "__main__":    
     run()
