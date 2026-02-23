@@ -19,32 +19,65 @@ class TaskManager:
 
     def show_tasks(self):
         # Nicer than just looking at self.tasks in a terminal, we can use this until we get the UI.
-        for i in self._tasks:
-            print(f"Name: {i.name}, Description: {i.description}")
+        for index, task in enumerate(self._tasks):
+            # 1 liners are good for little value updates like these.
+            status = "Done" if task.completed else "Pending"
+            overdue = " [OVERDUE]" if task.is_overdue() else ""
+            due_str = task.due_date.strftime("%Y-%m-%d %H:%M") if task.due_date else "No due date"
+            print(f"[{index}] {task.name}: {task.description} | Due: {due_str} | Status: {status}{overdue}")
 
 class Task:
     def __init__(self):
         self._name = ""
         self._description = ""
-        self._due = False
+        self._due_date = None
+        self._completed = False
+
     @property
     def name(self):
         return self._name
+
     @property
     def description(self):
         return self._description
+
     @property
-    def due(self):
-        return self._due
+    def due_date(self):
+        return self._due_date
+
+    @property
+    def completed(self):
+        return self._completed
+
     @name.setter
-    def name(self,newName):
+    def name(self, new_name):
         # Tasks must have a name.
-        if not newName or not newName.strip():
+        if not new_name or not new_name.strip():
             raise ValueError("Task name cannot be empty")
-        self._name = newName
+        self._name = new_name
+
     @description.setter
-    def description(self,newDescription):
-        self._description = newDescription
-    @due.setter
-    def due(self,newDue):
-        self._due = newDue
+    def description(self, new_description):
+        self._description = new_description
+
+    @due_date.setter
+    def due_date(self, new_due_date):
+        self._due_date = new_due_date
+
+    @completed.setter
+    def completed(self, new_completed):
+        self._completed = new_completed
+
+    def is_overdue(self):
+        # If no due date set or already completed, not overdue.
+        if self._due_date is None or self._completed:
+            return False
+        from datetime import datetime
+        # This evaluates to true if the current time is past the set due date.
+        return datetime.now() > self._due_date
+
+    def mark_complete(self):
+        self._completed = True
+
+    def mark_incomplete(self):
+        self._completed = False
