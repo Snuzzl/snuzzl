@@ -92,3 +92,9 @@ class RewardManager:
         """
         # SELECT COUNT(*) FROM rewards WHERE reward_id = ...
         pass
+    
+    class Reward:
+        pass
+        
+    class Challenge:
+        pass
