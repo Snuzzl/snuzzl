@@ -1,3 +1,17 @@
+-- New Tables -- 
+CREATE TABLE rewardType(
+    type_id SERIAL PRIMARY KEY,
+    type_name VARCHAR(30) NOT NULL,
+    type_desc VARCHAR(100) NOT NULL,
+    type_value INT NOT NULL,
+    type_badge BOOLEAN NOT NULL
+);-- Needs to be checked
+CREATE TABLE metType(
+    type_id SERIAL PRIMARY KEY,
+    type_name VARCHAR(30) NOT NULL,
+    type_desc VARCHAR(100)
+);-- Needs to be checked
+
 -- Main Tables -- 
 CREATE TABLE users(
     user_id SERIAL PRIMARY KEY,
@@ -165,16 +179,3 @@ CREATE TABLE taskMetric(
     FOREIGN KEY (task_id) REFERENCES tasks(task_id),
     FOREIGN KEY (met_id) REFERENCES metrics(met_id)
 );
--- New Tables -- 
-CREATE TABLE rewardType(
-    type_id SERIAL PRIMARY KEY,
-    type_name VARCHAR(30) NOT NULL,
-    type_desc VARCHAR(100) NOT NULL,
-    type_value INT NOT NULL,
-    type_badge BOOLEAN NOT NULL
-);-- Needs to be checked
-CREATE TABLE metType(
-    type_id SERIAL PRIMARY KEY,
-    type_name VARCHAR(30) NOT NULL,
-    type_desc VARCHAR(100)
-);-- Needs to be checked
