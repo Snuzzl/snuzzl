@@ -11,7 +11,11 @@ CREATE TABLE metType(
     type_name VARCHAR(30) NOT NULL,
     type_desc VARCHAR(100)
 );-- Needs to be checked
-
+CREATE TABLE routFreq(
+    freq_id SERIAL PRIMARY KEY,
+    freq_name VARCHAR(30) NOT NULL,
+    freq_desc VARCHAR(100)
+); -- Needs to be checked
 -- Main Tables -- 
 CREATE TABLE users(
     user_id SERIAL PRIMARY KEY,
@@ -32,7 +36,8 @@ CREATE TABLE tasks(
 CREATE TABLE routines(
     rout_id SERIAL PRIMARY KEY,
     rout_name VARCHAR(20) NOT NULL,
-    rout_freq -- Reference a new table
+    rout_freq INT NOT NULL,
+    FOREIGN KEY (rout_freq) REFERENCES routFreq(freq_id)
 );
 CREATE TABLE reminders(
     reminder_id SERIAL PRIMARY KEY,
