@@ -5,19 +5,19 @@ class TaskManager:
     @property
     def tasks(self):
         return self._tasks
-    def add_task(self, task):
+    def addTask(self, task):
         # If the task object we get isn't the same as Task, don't accept it.
         if not isinstance(task, Task):
             raise TypeError("Expected a task object")
         self._tasks.append(task)
 
-    def remove_task(self, index):
+    def removeTask(self, index):
         # Don't take an index outside the actual length of the tasks array or below 0. -1 wraps around to the end of the list.
         if index < 0 or index >=len(self._tasks):
             raise IndexError("Task index out of range")
         self._tasks.pop(index)
 
-    def show_tasks(self):
+    def showTasks(self):
         # Nicer than just looking at self.tasks in a terminal, we can use this until we get the UI.
         for index, task in enumerate(self._tasks):
             # 1 liners are good for little value updates like these.
