@@ -105,9 +105,7 @@ CREATE TABLE friends(
     FOREIGN KEY (friend_id) REFERENCES users(user_id),
     CONSTRAINT unique_friendship CHECK (user_id < friend_id)
 );
-CREATE TABLE messages(
-    -- still making progress
-);
+
 -- Intersection Tables --
 CREATE TABLE userRoutine(
     user_id INT NOT NULL,
