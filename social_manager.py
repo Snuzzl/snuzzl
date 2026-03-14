@@ -1,0 +1,2 @@
+class SocialManager:
+    pass
