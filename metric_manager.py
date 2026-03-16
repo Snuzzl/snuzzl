@@ -72,10 +72,11 @@ class Metric:
 
 class MetricManager:
 
-    def __init__(self):
+    def __init__(self, db):
         # Dictionary of the current users metrics, syncs with db
         # name : value 
         self._metrics = {}
+        self._db = db
 
     @property
     def metrics(self):
