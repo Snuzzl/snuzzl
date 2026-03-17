@@ -38,6 +38,7 @@ class Users(BaseModel):
     user_fname = CharField(20)
     user_email = CharField(100, unique=True)
     user_dob = DateField()
+    user_password = TextField(unique=True)
     class Meta:
         table_name = "users"
 

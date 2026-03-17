@@ -22,7 +22,7 @@ CREATE TABLE users(
     username VARCHAR(30) NOT NULL,
     user_fname VARCHAR(20) NOT NULL,
     user_email VARCHAR(100) UNIQUE NOT NULL,
-    user_dob DATE NOT NULL
+    user_dob DATE NOT NULL user_password TEXT UNIQUE NOT NULL
 );
 CREATE TABLE tasks(
     task_id SERIAL PRIMARY KEY,
@@ -68,7 +68,6 @@ CREATE TABLE exercises(
     exe_id SERIAL PRIMARY KEY,
     exe_name VARCHAR(50) NOT NULL,
     exe_length INTERVAL NOT NULL,
-    -- Duration in HH:MM:SS format
     exe_kcal INT NOT NULL
 );
 CREATE TABLE communities(
