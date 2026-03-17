@@ -22,7 +22,7 @@ CREATE TABLE users(
     username VARCHAR(30) NOT NULL,
     user_fname VARCHAR(20) NOT NULL,
     user_email VARCHAR(100) UNIQUE NOT NULL,
-    user_dob DATE NOT NULL
+    user_dob DATE NOT NULL user_password TEXT UNIQUE NOT NULL
 );
 CREATE TABLE tasks(
     task_id SERIAL PRIMARY KEY,
@@ -67,7 +67,7 @@ CREATE TABLE libraries(
 CREATE TABLE exercises(
     exe_id SERIAL PRIMARY KEY,
     exe_name VARCHAR(50) NOT NULL,
-    exe_length INTERVAL NOT NULL, -- Duration in HH:MM:SS format
+    exe_length INTERVAL NOT NULL,
     exe_kcal INT NOT NULL
 );
 CREATE TABLE communities(
@@ -105,7 +105,6 @@ CREATE TABLE friends(
     FOREIGN KEY (friend_id) REFERENCES users(user_id),
     CONSTRAINT unique_friendship CHECK (user_id < friend_id)
 );
-
 -- Intersection Tables --
 CREATE TABLE userRoutine(
     user_id INT NOT NULL,
