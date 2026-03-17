@@ -1,0 +1,50 @@
+import asyncio
+from database_manager import DatabaseManager
+from database_models import Users
+
+dbm = DatabaseManager()
+
+async def test_create():
+    user = await dbm.run(lambda: dbm.create_record(
+        dbm.models["Users"],
+        username="DxRansomz",
+        user_fname="Dylan",
+        user_email="dylan@email.com",
+        user_dob="2003-01-30"
+    ))
+    print("Created User:", user.username)
+
+async def test_read():
+    user = await dbm.run(lambda: dbm.read_record(dbm.models["Users"], 9))
+    if user is None:
+        print("This User Doesn't Exist")
+        return
+    print("Fetched User:", user.username)
+
+async def test_update():
+    user = await dbm.run(lambda: dbm.update_record(dbm.models["Users"], 9, username="dxransomz"))
+    if user is None:
+        print("This User Doesn't Exist")
+        return
+    print("Updated User")
+
+async def test_delete():
+    user = await dbm.run(lambda: dbm.delete_record(dbm.models["Users"], 9))
+    if user is None:
+        print("This User Doesn't Exist")
+        return
+    print("Deleted User")
+
+#asyncio.run(test_create())
+#asyncio.run(test_read())
+#asyncio.run(test_update())
+#asyncio.run(test_delete())
+
+
+asyncio.run(dbm.create_record(
+        dbm.models["Users"],
+        username="RipperAce",
+        user_fname="Alfie",
+        user_email="alfie@email.com",
+        user_dob="2004-12-20"
+    ))

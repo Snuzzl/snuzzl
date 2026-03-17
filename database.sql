@@ -1,3 +1,21 @@
+-- New Tables -- 
+CREATE TABLE rewardType(
+    type_id SERIAL PRIMARY KEY,
+    type_name VARCHAR(30) NOT NULL,
+    type_desc VARCHAR(100) NOT NULL,
+    type_value INT NOT NULL,
+    type_badge BOOLEAN NOT NULL
+);
+CREATE TABLE metType(
+    type_id SERIAL PRIMARY KEY,
+    type_name VARCHAR(30) NOT NULL,
+    type_desc VARCHAR(100)
+);
+CREATE TABLE routFreq(
+    freq_id SERIAL PRIMARY KEY,
+    freq_name VARCHAR(30) NOT NULL,
+    freq_desc VARCHAR(100)
+);
 -- Main Tables -- 
 CREATE TABLE users(
     user_id SERIAL PRIMARY KEY,
@@ -9,16 +27,13 @@ CREATE TABLE users(
 CREATE TABLE tasks(
     task_id SERIAL PRIMARY KEY,
     task_name VARCHAR(20) NOT NULL,
-    task_desc VARCHAR(250),
-    task_complete BOOLEAN NOT NULL,
-    task_date DATE NOT NULL,
-    task_stime TIME NOT NULL,
-    task_etime TIME NOT NULL
+    task_desc VARCHAR(250)
 );
 CREATE TABLE routines(
     rout_id SERIAL PRIMARY KEY,
     rout_name VARCHAR(20) NOT NULL,
-    rout_freq -- Reference a new table
+    rout_freq INT NOT NULL,
+    FOREIGN KEY (rout_freq) REFERENCES routFreq(freq_id)
 );
 CREATE TABLE reminders(
     reminder_id SERIAL PRIMARY KEY,
@@ -35,7 +50,6 @@ CREATE TABLE metrics(
     FOREIGN KEY (met_type) REFERENCES metType(type_id)
 );
 CREATE TABLE metricValue(
-    -- metval_id is a surrogate key
     metval_id SERIAL PRIMARY KEY,
     user_id INT NOT NULL,
     met_id INT NOT NULL,
@@ -53,7 +67,8 @@ CREATE TABLE libraries(
 CREATE TABLE exercises(
     exe_id SERIAL PRIMARY KEY,
     exe_name VARCHAR(50) NOT NULL,
-    exe_length INTERVAL NOT NULL, -- Duration in HH:MM:SS format
+    exe_length INTERVAL NOT NULL,
+    -- Duration in HH:MM:SS format
     exe_kcal INT NOT NULL
 );
 CREATE TABLE communities(
@@ -103,6 +118,10 @@ CREATE TABLE userTask(
     task_id INT NOT NULL,
     user_id INT NOT NULL,
     PRIMARY KEY (task_id, user_id),
+    task_complete BOOLEAN NOT NULL,
+    task_date DATE NOT NULL,
+    task_stime TIME NOT NULL,
+    task_etime TIME NOT NULL,
     FOREIGN KEY (task_id) REFERENCES tasks(task_id),
     FOREIGN KEY (user_id) REFERENCES users(user_id)
 );
@@ -162,16 +181,3 @@ CREATE TABLE taskMetric(
     FOREIGN KEY (task_id) REFERENCES tasks(task_id),
     FOREIGN KEY (met_id) REFERENCES metrics(met_id)
 );
--- New Tables -- 
-CREATE TABLE rewardType(
-    type_id SERIAL PRIMARY KEY,
-    type_name VARCHAR(30) NOT NULL,
-    type_desc VARCHAR(100) NOT NULL,
-    type_value INT NOT NULL,
-    type_badge BOOLEAN NOT NULL
-);-- Needs to be checked
-CREATE TABLE metType(
-    type_id SERIAL PRIMARY KEY,
-    type_name VARCHAR(30) NOT NULL,
-    type_desc VARCHAR(100)
-);-- Needs to be checked
