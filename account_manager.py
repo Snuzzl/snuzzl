@@ -1,4 +1,5 @@
 import asyncio
+from peewee import *
 from datetime import *
 from database_manager import DatabaseManager
 from database_models import Users
@@ -6,12 +7,13 @@ from database_models import Users
 dbm = DatabaseManager()
 
 class AccountManager:
-    def __init__(self,email,username,fname,dob,password):
+    def __init__(self,email, username, fname, dob, password):
         self.username = username
         self.email = email
         self.fname = fname
         self.dob = dob
         self.password = password
+        self.currentuser = "Guest"
 
     def _validateUsername(self, username):
         if not username or len(username) < 3:
@@ -47,44 +49,37 @@ class AccountManager:
             user_email=self.email,
             user_dob=self.dob
             ))
-    
-    async def readAccount(self, username):
-        user = await dbm.run(lambda: dbm.read_record(dbm.models["Users"], 9))
+
+    async def readAccount(self, value):
+        user = await dbm.run(lambda: dbm.read_record(dbm.models["Users"], value))
         if user is None:
             print("This User Doesn't Exist")
         else:
-            print("Fetched User:", user.username)
+            print("Fetched User:", user.username,user.fname, user.user_email, user.user_dob)
 
-    def login(self):
-        print("---Login Page---")
-        username = input("Enter username: ")
-        password = input("Enter password: ")
-        for account in self.accounts:
-            if account.username == username and account.password == password:
-                self.currentUser = username
-                print(f"Hello: {username}")
-                print(account)
-                return True
-            else:
-                print("Invalid username or password")
-                return False
-        pass
+    def login(self,username, password):
+        user = asyncio.run(account_manager.readAccount(username))
+        if user.username == username and user.password == password:
+            self.currentUser = username
+            print(f"Hello: {username}")
+            print(user.username, user.user_email, user.user_dob)
+            self.currentuser = user.username
+            return True
+        else:
+            print("Invalid username or password")
+            return False
 
     def logout(self):
-        self.currentUser = "Guest"
+        self.currentuser = "Guest"
         return self.login()
         #sets to guest so when logged out information can not be accessed
 
-    def deleteAccount(self, username):
-        for i, account in enumerate(self.accounts):
-            if account.username == username:
-                self.accounts.pop(i)
-                print(f"Account '{username}' deleted successfully")
-                if self.currentUser == username:
-                    self.currentUser = "Guest"
-                return True
-        print(f"Account '{username}' not found")
-        return False
+    async def deleteAccount(self, value):
+        user = await dbm.run(lambda: dbm.delete_record(dbm.models["Users"], value))
+        if user is None:
+            print("This User Doesn't Exist")
+            return
+        print("Deleted User")
 
     def updateEmail(self, account):
         new_email = input("Enter new email: ")
@@ -110,5 +105,6 @@ class AccountManager:
         pass
  
 if __name__ == "__main__": 
-    account_manager = AccountManager("example@example.com","exampleuser", "Example",date(2000, 1, 1),"password123")
-    asyncio.run(account_manager.createAccount())
+    account_manager = AccountManager("example3@example.com","exampleuser3", "Example3",date(2000, 1, 1),"password123")
+    #asyncio.run(account_manager.createAccount())
+    asyncio.run(account_manager.login("exampleuser3", "password123"))
