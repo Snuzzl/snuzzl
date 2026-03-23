@@ -3,6 +3,195 @@ import re
 import httpx
 
 
+class Account:
+    def __init__(self):
+        self.username = ""
+        self.fname = ""
+        self.email = ""
+        self.password = ""
+
+
+class MainScreen:
+    def __init__(self, page, acc):
+        self.page = page
+        self.acc = acc
+
+    def show(self):
+        self.page.clean()
+        self.page.add(
+            flet.Text("Welcome to Snuzzl!", color='black', size=25,
+                      weight='bold'),
+            flet.Button("Enter", on_click=lambda e:
+                        Login(self.page, self.acc).show()
+                        )
+        )
+
+
+class Login:
+    def __init__(self, page, acc):
+        self.page = page
+        self.acc = acc
+
+    def create_input(self, label_text, hint,):
+        return flet.TextField(
+            label=label_text,
+            hint_text=hint,
+            width=200,
+            border=flet.InputBorder.UNDERLINE,
+            filled=True
+            )
+
+    def show(self):
+        self.page.clean()
+
+        # creates each text field and assigns to a varaible
+        self.username_field = self.create_input("Username", "username")
+        self.fname_field = self.create_input("First Name", "Jane")
+        self.email_field = self.create_input("Email", "example@gmail.com")
+        self.password_field = self.create_input("Password", "Enter password")
+
+        self.page.add(
+            flet.Text("Enter Details", color='black', size=25, weight='bold'),
+            self.username_field,
+            self.fname_field,
+            self.email_field,
+            self.password_field,
+            flet.ElevatedButton("Submit", on_click=self.submit)
+        )
+
+    def submit(self, e):
+        self.acc.username = self.username_field.value
+        self.acc.fname = self.fname_field.value
+        self.acc.email = self.email_field.value
+        self.acc.password = self.password_field.value
+
+        Summary(self.page, self.acc).show()
+
+
+class Summary:
+    def __init__(self, page, acc):
+        self.page = page
+        self.acc = acc
+
+    def show(self):
+        self.page.clean()
+        self.page.add(
+            flet.Text(f"Hello, {self.acc.fname}.",
+                      color='black', size=25, weight='bold'),
+            flet.Row([
+                flet.Text(f"Username: {self.acc.username}",
+                          color='black', size=15),
+                flet.Button("Change Username", on_click=lambda e:
+                            UsernameChange(self.page, self.acc).show()),
+            ]),
+            flet.Row([
+                flet.Text(f"Email: {self.acc.email}",
+                          color='black', size=15),
+                flet.Button("Change Email", on_click=lambda e:
+                            EmailChange(self.page, self.acc).show()),
+            ]),
+            flet.Row([
+                flet.Text(f"Password: {self.acc.password}",
+                          color='black', size=15),
+                flet.Button("Change Password", on_click=lambda e:
+                            PassChange(self.page, self.acc).show()),
+            ])
+        )
+
+
+class UsernameChange:
+    def __init__(self, page, acc):
+        self.page = page
+        self.acc = acc
+
+    def create_input(self, label, hint):
+        return flet.TextField(
+            label=label,
+            hint_text=hint,
+            width=200,
+            border=flet.InputBorder.UNDERLINE,
+            filled=True
+        )
+
+    def show(self):
+        self.page.clean()
+
+        self.username_field = self.create_input("Username", "username")
+
+        self.page.add(
+            flet.Text("Change Username",
+                      color='black', size=25, weight='bold'),
+            self.username_field,
+            flet.ElevatedButton("Submit", on_click=self.submit)
+        )
+
+    def submit(self, e):
+        self.acc.username = self.username_field.value
+        Summary(self.page, self.acc).show()
+
+
+class EmailChange:
+    def __init__(self, page, acc):
+        self.page = page
+        self.acc = acc
+
+    def create_input(self, label, hint):
+        return flet.TextField(
+            label=label,
+            hint_text=hint,
+            width=200,
+            border=flet.InputBorder.UNDERLINE,
+            filled=True
+        )
+
+    def show(self):
+        self.page.clean()
+
+        self.email_field = self.create_input("Email", "email")
+
+        self.page.add(
+            flet.Text("Change Email",
+                      color='black', size=25, weight='bold'),
+            self.email_field,
+            flet.ElevatedButton("Submit", on_click=self.submit)
+        )
+
+    def submit(self, e):
+        self.acc.email = self.email_field.value
+        Summary(self.page, self.acc).show()
+
+
+class PassChange:
+    def __init__(self, page, acc):
+        self.page = page
+        self.acc = acc
+
+    def create_input(self, label, hint):
+        return flet.TextField(
+            label=label,
+            hint_text=hint,
+            width=200,
+            border=flet.InputBorder.UNDERLINE,
+            filled=True
+        )
+
+    def show(self):
+        self.page.clean()
+
+        self.password_field = self.create_input("Password", "password")
+
+        self.page.add(
+            flet.Text("Change Password",
+                      color='black', size=25, weight='bold'),
+            self.password_field,
+            flet.ElevatedButton("Submit", on_click=self.submit)
+        )
+
+    def submit(self, e):
+        self.acc.password = self.password_field.value
+        Summary(self.page, self.acc).show()
+
+
 def main(page: flet.Page):
     page.title = "Snuzzl"
     page.window.width = 360
@@ -10,119 +199,13 @@ def main(page: flet.Page):
     page.vertical_alignment = 'center'
     page.horizontal_alignment = 'center'  
     page.bgcolor = 'white'
-    
+
+    acc = Account()
+
     def is_valid_email(email: str) -> bool:
         return re.match(r'^[\w\.-]+@[\w\.-]+\.\w+$', email) is not None
-    
-# clears page & adds main screen components
-    def main_screen():
-        page.clean()
-        page.add(
-            flet.Text("Welcome to Snuzzl!", color='black', size=25,
-                      weight='bold'),
-            flet.Button("Enter", on_click=login_screen)            
-        )
 
-# clears page & adds login screen components
-    def login_screen(e=None):
-        page.clean()
+    MainScreen(page, acc).show()
 
-        # creates each text field and assigns to a varaible
-        username_field = create_input("Username", "username")
-        fname_field = create_input("First Name", "Jane")
-        email_field = create_input("Email", "example@gmail.com")
-        password_field = create_input("Password", "Enter password")
-     
-        def on_submit(e):
-            submit(username_field.value,
-                   fname_field.value,
-                   email_field.value,
-                   password_field.value)
-        
-        page.add(
-            flet.Text("Enter Details", color='black', size=25, weight='bold'),
-            username_field,
-            fname_field,
-            email_field,
-            password_field,
-            flet.ElevatedButton("Submit", on_click=on_submit)
-
-        )
-
-    def create_input(label_text, hint, width=200):
-        return flet.TextField(
-            label=label_text,
-            hint_text=hint,
-            width=width,
-            border=flet.InputBorder.UNDERLINE,
-            filled=True
-            )
-    
-    def submit(username, fname, email, password):
-        page.clean()
-        page.add(
-            flet.Text(f"Hello, {fname}.",
-                      color='black', size=25, weight='bold'),
-            flet.Row([
-                flet.Text(f"Username: {username}", color='black', size=15),
-                flet.Button("Change Username", on_click=lambda e:
-                            username_change(fname, email, password)),
-            ]),
-            flet.Row([ 
-                flet.Text(f"Email: {email}", color='black', size=15),
-                flet.Button("Change Email", on_click=lambda e:
-                            email_change(username, fname, password)),
-            ]),
-            flet.Row([ 
-                flet.Text(f"Password: {password}", color='black', size=15),
-                flet.Button("Change Password", on_click=lambda e:
-                            pass_change(username, fname, email)),
-            ])
-        )
-    
-    def email_change(username, fname, password):
-        page.clean()
-        email_field = create_input("Email", "example@gmail.com")
-        
-        def on_submit(e):
-            submit(username, fname, email_field.value, password)
-
-        page.add(
-            flet.Text("Change Email",
-                      color='black', size=25, weight='bold'),
-            email_field,
-            flet.Button("Submit", on_click=on_submit)
-        )
-
-    def username_change(fname, email, password):
-        page.clean()
-        username_field = create_input("Username", "username")
-
-        def on_submit(e):
-            submit(username_field.value, fname, email, password)
-
-        page.add(
-            flet.Text("Change Username",
-                      color='black', size=25, weight='bold'),
-            username_field,
-            flet.Button("Submit", on_click=on_submit)
-        )
-
-    def pass_change(username, fname, email):
-        page.clean()
-        password_field = create_input("Password", "Enter password")
-
-        def on_submit(e):
-            submit(username, fname, email, password_field.value)
-
-        page.add(
-            flet.Text("Change Password",
-                      color='black', size=25, weight='bold'),
-            password_field,
-            flet.Button("Submit", on_click=on_submit)
-        )
-        
-    main_screen()
-    
 
 flet.run(main)
