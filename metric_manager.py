@@ -73,64 +73,61 @@ class Metric:
 class MetricManager:
 
     def __init__(self, db):
-        # Dictionary of the current users metrics, syncs with db
-        # name : value 
-        self._metrics = {}
         self._db = db
 
-    @property
-    def metrics(self):
-        return self._metrics
-
-    @metrics.setter
-    def metrics(self, metrics):
-        self._metrics = metrics
-
-    def createMetric(self, name, description, min_value=0, max_value=10):
-        # Create a new type of metric
-        # Type validation
-        if type(name) != str or type(description) != str: 
-            try:
+    # Create a new type of metric
+    def create_metric(self, name, description, min_value=0, max_value=10, reset=True):
+        # Null value and type check
+        try:
+            if not name or not name.strip():
+                raise ValueError("Metric name cannot be empty")
+            else:
                 name = str(name)
-                description = str(description) 
-            except TypeError as err:
-                return err
-        # Insert new metric object to metric dictionary & database
-        if name in self.metrics.keys():
-            return IndexError("Create failed: Metric already exists.")
-        new_metric = Metric()
-        new_metric.name = name
-        new_metric.description = description
-        new_metric.min_value = min_value
-        new_metric.max_value = max_value
-        self.metrics[name] = new_metric
+            if not description or not description.strip():
+                raise ValueError("Metric description cannot be empty")
+            else:
+                description = str(description)
+            min_value = int(min_value)
+            max_value = int(max_value)
+            reset = bool(reset)
+        except TypeError as err:
+            return err
+        # Validate name
+        if 3 > len(name) > 20:
+            raise ValueError("Metric name must be between 3 and 20 characters")
+        # Validate description
+        if len(description) > 250:
+            raise ValueError("Metric description must be max of 250 characters")
+        # Create metric in db
+        self._db.create_record(
+            self._db.models["Metrics"],
+            met_name = name,
+            met_desc = description,
+            # Currently not in db:
+            # met_min_value = min_value,
+            # met_max_value = max_value,
+            # met_reset = reset,
+            met_type = 1 # Default type?
+        )
+        # Error if metric already exists
         # Confirm metric creation
         return f"Metric '{name}' created." 
-        
-    def readMetric(self, metric):
-        # read metric from dictionary and/or database
-        if metric in self.metrics.keys():
-            return self.metrics[metric]
-        else:
-            return KeyError("Read failed: Metric does not exist.")
+    
+    # Retrieve information for a metric
+    def read_metric(self, met_id):
+        return self._db.read_record(self._db.models["Metrics"], met_id)
 
+    
+    def update_metric_value(self, user_id, metric_id, value):
+        return self._db.create_record(
+            self._db.models["MetricValue"], 
+            user_id = user_id, 
+            met_id = metric_id,
+            metval_date = ,
+            
 
-    def updateMetric(self, metric, value):
-        # Update metric in dictionary & database
-        if metric in self.metrics.keys():
-            m = self.metrics[metric]
-            if m.min_value > value > m.max_value:
-                return ValueError(f"Value must be between {m.min_value} and {m.max_value}.")
-            m.value = value
-        else:
-            return IndexError("Update failed: Metric does not exist.")
-
-    def deleteMetric(self, metric):
-        # Remove metric from dictionary & database
-        if metric in self.metrics.keys():
-            del self.metrics[metric]
-        else:
-            return KeyError("Delete failed: Metric does not exist.")
+    def deleteMetric(self, metric_id):
+        self._db.delete_record(self._db.models["MetricValue"], metric_id)
 
     def syncMetrics(self, user_id):
         # Update self.metrics with data from database
