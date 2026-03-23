@@ -111,4 +111,4 @@ class AccountManager:
  
 if __name__ == "__main__": 
     account_manager = AccountManager("example@example.com","exampleuser", "Example",date(2000, 1, 1),"password123")
-    account_manager.createAccount()
+    asyncio.run(account_manager.createAccount())
