@@ -1,5 +1,6 @@
 import flet
-import httpx
+
+# import httpx
 
 
 class Summary:

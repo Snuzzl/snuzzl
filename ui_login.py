@@ -14,6 +14,8 @@ class Account:
         self.email = ""
         self.password = ""
 
+# Main screen with options to login or create account
+
 
 class MainScreen:
     def __init__(self, page, acc):
@@ -38,6 +40,8 @@ class MainScreen:
 
     def create_account(self, e):
         CreateAccount(self.page, self.acc).show()
+
+# Screen for creating a new account
 
 
 class CreateAccount:
@@ -120,6 +124,8 @@ class CreateAccount:
         self.acc.password = self.password_field.value
 
         Summary(self.page, self.acc).show()
+
+# Screen for logging into an existing account
 
 
 class Login:
