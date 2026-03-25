@@ -1,6 +1,7 @@
 import asyncio
 from peewee import *
 from datetime import *
+import hashlib
 from database_manager import DatabaseManager
 from database_models import Users
 
@@ -30,6 +31,7 @@ class AccountManager:
     def _validatePassword(self, password):
         if not password or len(password) < 6:
             raise ValueError("Password must be at least 6 characters long")
+        self.password = hashlib.sha256(password.encode('utf-8')).hexdigest()
         return password
 
     async def createAccount(self):
@@ -42,13 +44,14 @@ class AccountManager:
             print(f"Account creation failed: {e}")
             validate = False
         if validate is True:
+            print(self.password)
             user = await dbm.run(lambda: dbm.create_record(
             dbm.models["Users"],
             username=self.username,
             user_fname=self.fname,
             user_email=self.email,
             user_dob=self.dob,
-            password=self.password
+            user_password=self.password
             ))
 
     async def readAccount(self, value):
@@ -59,12 +62,11 @@ class AccountManager:
             print("Fetched User:", user.username,user.fname, user.user_email, user.user_dob)
 
     def login(self,username, password):
-        user = asyncio.run(account_manager.readAccount(username))
-        if user.username == username and user.password == password:
-            self.currentUser = username
+        user = asyncio.run(self.readAccount(username))
+        if user and user.user_password == hashlib.sha256(password.encode('utf-8')).hexdigest():
+            self.currentuser = username
             print(f"Hello: {username}")
             print(user.username, user.user_email, user.user_dob)
-            self.currentuser = user.username
             return True
         else:
             print("Invalid username or password")
@@ -106,6 +108,6 @@ class AccountManager:
         pass
  
 if __name__ == "__main__": 
-    account_manager = AccountManager("test1@example.com","testuser1", "Example3",date(2000, 1, 1),"password123")
-    asyncio.run(account_manager.createAccount())
-    asyncio.run(account_manager.login("testuser1", "password123"))
+    account_manager = AccountManager("test99@example.com","testuser99", "Example99",date(2000, 1, 1),"password99")
+    #asyncio.run(account_manager.createAccount())
+    asyncio.run(account_manager.login("testuser99", "password99"))
