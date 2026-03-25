@@ -47,7 +47,8 @@ class AccountManager:
             username=self.username,
             user_fname=self.fname,
             user_email=self.email,
-            user_dob=self.dob
+            user_dob=self.dob,
+            password=self.password
             ))
 
     async def readAccount(self, value):
@@ -71,7 +72,7 @@ class AccountManager:
 
     def logout(self):
         self.currentuser = "Guest"
-        return self.login()
+       
         #sets to guest so when logged out information can not be accessed
 
     async def deleteAccount(self, value):
@@ -105,6 +106,6 @@ class AccountManager:
         pass
  
 if __name__ == "__main__": 
-    account_manager = AccountManager("example3@example.com","exampleuser3", "Example3",date(2000, 1, 1),"password123")
-    #asyncio.run(account_manager.createAccount())
-    asyncio.run(account_manager.login("exampleuser3", "password123"))
+    account_manager = AccountManager("test1@example.com","testuser1", "Example3",date(2000, 1, 1),"password123")
+    asyncio.run(account_manager.createAccount())
+    asyncio.run(account_manager.login("testuser1", "password123"))
