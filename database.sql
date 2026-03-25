@@ -2,19 +2,22 @@
 CREATE TABLE rewardType(
     type_id SERIAL PRIMARY KEY,
     type_name VARCHAR(30) NOT NULL,
-    type_desc VARCHAR(100) NOT NULL,
-    type_value INT NOT NULL,
-    type_badge BOOLEAN NOT NULL
+    type_desc VARCHAR(100)
 );
 CREATE TABLE metType(
-    type_id SERIAL PRIMARY KEY,
-    type_name VARCHAR(30) NOT NULL,
-    type_desc VARCHAR(100)
+   type_id SERIAL PRIMARY KEY,
+   type_name VARCHAR(30) NOT NULL,
+   type_desc VARCHAR(100)
 );
 CREATE TABLE routFreq(
     freq_id SERIAL PRIMARY KEY,
     freq_name VARCHAR(30) NOT NULL,
     freq_desc VARCHAR(100)
+);
+CREATE TABLE taskType(
+    type_id SERIAL PRIMARY KEY,
+    type_name VARCHAR(20) NOT NULL,
+    type_desc VARCHAR(200)
 );
 -- Main Tables -- 
 CREATE TABLE users(
@@ -22,31 +25,50 @@ CREATE TABLE users(
     username VARCHAR(30) NOT NULL,
     user_fname VARCHAR(20) NOT NULL,
     user_email VARCHAR(100) UNIQUE NOT NULL,
-    user_dob DATE NOT NULL user_password TEXT UNIQUE NOT NULL
+    user_dob DATE NOT NULL,
+    user_password TEXT NOT NULL
 );
 CREATE TABLE tasks(
     task_id SERIAL PRIMARY KEY,
     task_name VARCHAR(20) NOT NULL,
-    task_desc VARCHAR(250)
+    task_desc VARCHAR(250),
+    type_id INT NOT NULL,
+    FOREIGN KEY (type_id) REFERENCES taskType(type_id)
+);
+CREATE TABLE customTasks(
+    cust_id SERIAL PRIMARY KEY,
+    cust_name VARCHAR(20) NOT NULL,
+    cust_desc VARCHAR(200),
+    type_id INT NOT NULL,
+    FOREIGN KEY (type_id) REFERENCES taskType(type_id)
 );
 CREATE TABLE routines(
     rout_id SERIAL PRIMARY KEY,
-    rout_name VARCHAR(20) NOT NULL,
-    rout_freq INT NOT NULL,
-    FOREIGN KEY (rout_freq) REFERENCES routFreq(freq_id)
+    rout_name VARCHAR(20) NOT NULL
 );
 CREATE TABLE reminders(
     reminder_id SERIAL PRIMARY KEY,
-    task_id INT NOT NULL,
+    user_id INT NOT NULL,
+    task_id INT,
+    cust_id INT,
     reminder_txt VARCHAR(100),
     remind_at TIMESTAMP,
-    FOREIGN KEY (task_id) REFERENCES tasks(task_id)
+    FOREIGN KEY (user_id) REFERENCES users(user_id),
+    FOREIGN KEY (task_id) REFERENCES tasks(task_id),
+    FOREIGN KEY (cust_id) REFERENCES customTasks(cust_id),
+    CHECK (
+        (task_id IS NULL AND cust_id IS NOT NULL)
+        OR
+        (task_id IS NOT NULL AND cust_id IS NULL)
+    )
 );
 CREATE TABLE metrics(
     met_id SERIAL PRIMARY KEY,
     met_name VARCHAR(20) NOT NULL,
     met_desc VARCHAR(250) NOT NULL,
     met_type INT NOT NULL,
+    met_min SMALLINT NOT NULL,
+    met_max SMALLINT NOT NULL,
     FOREIGN KEY (met_type) REFERENCES metType(type_id)
 );
 CREATE TABLE metricValue(
@@ -67,7 +89,7 @@ CREATE TABLE libraries(
 CREATE TABLE exercises(
     exe_id SERIAL PRIMARY KEY,
     exe_name VARCHAR(50) NOT NULL,
-    exe_length INTERVAL NOT NULL,
+    exe_length SMALLINT NOT NULL,
     exe_kcal INT NOT NULL
 );
 CREATE TABLE communities(
@@ -78,9 +100,7 @@ CREATE TABLE communities(
 CREATE TABLE challenges(
     chall_id SERIAL PRIMARY KEY,
     chall_name VARCHAR(50) NOT NULL,
-    chall_desc VARCHAR(200),
-    chall_stime DATE NOT NULL,
-    chall_edate DATE NOT NULL
+    chall_desc VARCHAR(200)
 );
 CREATE TABLE rewards(
     reward_id SERIAL PRIMARY KEY,
@@ -96,44 +116,58 @@ CREATE TABLE competitions(
     comp_sdate DATE NOT NULL,
     comp_edate DATE NOT NULL
 );
+CREATE TYPE friend_stat AS ENUM ('Friends', 'Pending - Sent', 'Pending - Received', 'Not Friends');
 CREATE TABLE friends(
     user_id INT NOT NULL,
     friend_id INT NOT NULL,
-    friend_status BOOLEAN NOT NULL,
+    friend_status friend_stat NOT NULL,
     PRIMARY KEY (user_id, friend_id),
     FOREIGN KEY (user_id) REFERENCES users(user_id),
     FOREIGN KEY (friend_id) REFERENCES users(user_id),
-    CONSTRAINT unique_friendship CHECK (user_id < friend_id)
+    CHECK (user_id <> friend_id)
 );
 -- Intersection Tables --
 CREATE TABLE userRoutine(
     user_id INT NOT NULL,
     rout_id INT NOT NULL,
+    rout_freq INT NOT NULL,
     PRIMARY KEY (user_id, rout_id),
     FOREIGN KEY (user_id) REFERENCES users(user_id),
+    FOREIGN KEY (rout_freq) REFERENCES routFreq(freq_id),
     FOREIGN KEY (rout_id) REFERENCES routines(rout_id)
 );
 CREATE TABLE userTask(
-    task_id INT NOT NULL,
+    usertask_id SERIAL PRIMARY KEY,
     user_id INT NOT NULL,
-    PRIMARY KEY (task_id, user_id),
+    task_id INT,
+    cust_id INT,
     task_complete BOOLEAN NOT NULL,
     task_date DATE NOT NULL,
     task_stime TIME NOT NULL,
     task_etime TIME NOT NULL,
     FOREIGN KEY (task_id) REFERENCES tasks(task_id),
-    FOREIGN KEY (user_id) REFERENCES users(user_id)
+    FOREIGN KEY (user_id) REFERENCES users(user_id),
+    FOREIGN KEY (cust_id) REFERENCES customTasks(cust_id),
+    CHECK (
+    (task_id IS NULL AND cust_id IS NOT NULL)
+    OR
+    (task_id IS NOT NULL AND cust_id IS NULL)
+    )
 );
 CREATE TABLE userChallenges(
     user_id INT NOT NULL,
     chall_id INT NOT NULL,
+    chall_sdate DATE NOT NULL,
+    chall_edate DATE NOT NULL,
     PRIMARY KEY (user_id, chall_id),
     FOREIGN KEY (user_id) REFERENCES users(user_id),
     FOREIGN KEY (chall_id) REFERENCES challenges(chall_id)
 );
+CREATE TYPE comp_activity AS ENUM ('Not Comp', 'Pending', 'In Comp');
 CREATE TABLE compParticipant(
     user_id INT NOT NULL,
     comp_id INT NOT NULL,
+    comp_status comp_activity NOT NULL,
     PRIMARY KEY (user_id, comp_id),
     FOREIGN KEY (user_id) REFERENCES users(user_id),
     FOREIGN KEY (comp_id) REFERENCES competitions(comp_id)
@@ -174,9 +208,23 @@ CREATE TABLE compChallenges(
     FOREIGN KEY (chall_id) REFERENCES challenges(chall_id)
 );
 CREATE TABLE taskMetric(
-    task_id INT NOT NULL,
+    type_id INT NOT NULL,
     met_id INT NOT NULL,
-    PRIMARY KEY (task_id, met_id),
-    FOREIGN KEY (task_id) REFERENCES tasks(task_id),
+    PRIMARY KEY (type_id, met_id),
+    FOREIGN KEY (type_id) REFERENCES taskType(type_id),
     FOREIGN KEY (met_id) REFERENCES metrics(met_id)
+);
+CREATE TABLE routineTask(
+    routinetask_id SERIAL PRIMARY KEY,
+    rout_id INT NOT NULL,
+    task_id INT,
+    cust_id INT,
+    FOREIGN KEY (rout_id) REFERENCES routines(rout_id),
+    FOREIGN KEY (task_id) REFERENCES tasks(task_id),
+    FOREIGN KEY (cust_id) REFERENCES customTasks(cust_id),
+    CHECK (
+    (task_id IS NULL AND cust_id IS NOT NULL)
+    OR
+    (task_id IS NOT NULL AND cust_id IS NULL)
+    )
 );
