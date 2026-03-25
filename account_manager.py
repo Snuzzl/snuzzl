@@ -84,30 +84,42 @@ class AccountManager:
             return
         print("Deleted User")
 
-    def updateEmail(self, account):
-        new_email = input("Enter new email: ")
-        account.email = new_email
-        print(f"Email updated to {new_email}")
-        return True
+    async def updateEmail(self, value, new_email):
+        new_email = self._validateEmail(new_email)
+        user = await dbm.run(lambda: dbm.update_record(dbm.models["Users"], value, user_email=new_email))
+        if user is None:
+            print("This User Doesn't Exist")
+            return
+        print("Updated User")
    
-    def updatePassword(self):
-        password = input("Enter current password: ")
-        if account.password == password:
-            new_password = input("Enter new password: ")
-            for account in self.accounts:
-                if account.username == self.currentUser:
-                    account.password = new_password
-                    print(f"Password updated to {new_password}")
-                    return True
-        else:
-            print("Incorrect current password")
-            return False
+    async def updatePassword(self, value, new_password):
+        new_password = self._validatePassword(new_password)
+        user = await dbm.run(lambda: dbm.update_record(dbm.models["Users"], value, user_password=new_password))
+        if user is None:
+            print("This User Doesn't Exist")
+            return
+        print("Updated User")
 
+    async def updateUsername(self, value, new_username):
+        new_username = self._validateUsername(new_username)
+        user = await dbm.run(lambda: dbm.update_record(dbm.models["Users"], value, username=new_username))
+        if user is None:
+            print("This User Doesn't Exist")
+            return
+        print("Updated User")
+    
+    async def updateFname(self, value, new_fname):
+        user = await dbm.run(lambda: dbm.update_record(dbm.models["Users"], value, user_fname=new_fname))
+        if user is None:
+            print("This User Doesn't Exist")
+            return
+        print("Updated User")
+    
     def sync():
         # Sync current user account to db, can be left for later
         pass
  
 if __name__ == "__main__": 
     account_manager = AccountManager("test99@example.com","testuser99", "Example99",date(2000, 1, 1),"password99")
-    #asyncio.run(account_manager.createAccount())
+    asyncio.run(account_manager.createAccount())
     asyncio.run(account_manager.login("testuser99", "password99"))
