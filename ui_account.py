@@ -1,4 +1,4 @@
-import flet
+import flet as ft
 
 # import httpx
 
@@ -11,27 +11,31 @@ class Summary:
     def show(self):
         self.page.clean()
         self.page.add(
-            flet.Text(f"Hello, {self.acc.fname}.",
-                      color='black', size=25, weight='bold'),
-            flet.Row([
-                flet.Text(f"Username: {self.acc.username}",
-                          color='black', size=15),
-                flet.Button("Change Username", on_click=lambda e:
-                            UsernameChange(self.page, self.acc).show()),
+            ft.Text(f"Hello, {self.acc.fname}.",
+                    color='black', size=25, weight='bold'),
+            ft.Row([
+                ft.Text(f"Username: {self.acc.username}",
+                        color='black', size=15, weight='bold'),
+                ft.Button("Change Username", on_click=lambda e:
+                          UsernameChange(self.page, self.acc).show()),
             ], alignment='spaceBetween'),
-            flet.Row([
-                flet.Text(f"Email: {self.acc.email}",
-                          color='black', size=15),
-                flet.Button("Change Email", on_click=lambda e:
-                            EmailChange(self.page, self.acc).show()),
+            ft.Row([
+                ft.Text(f"Email: {self.acc.email}",
+                        color='black', size=15, weight='bold'),
+                ft.Button("Change Email", on_click=lambda e:
+                          EmailChange(self.page, self.acc).show()),
             ], alignment='spaceBetween'),
-            flet.Row([
-                flet.Text(f"Password: {self.acc.password}",
-                          color='black', size=15),
-                flet.Button("Change Password", on_click=lambda e:
-                            PassChange(self.page, self.acc).show()),
+            ft.Row([
+                ft.Text(f"Password: {self.acc.password}",
+                        color='black', size=15, weight='bold'),
+                ft.Button("Change Password", on_click=lambda e:
+                          PassChange(self.page, self.acc).show()),
             ], alignment='spaceBetween'),
-            flet.Button("Logout", on_click=self.logout)
+            ft.Row([
+                ft.Text(f"Date of Birth: {self.acc.dob}",
+                        color='black', size=15, weight='bold'),
+            ], alignment='start'),
+            ft.Button("Logout", on_click=self.logout),
         )
 
     def logout(self, e):
@@ -50,11 +54,11 @@ class UsernameChange:
         self.acc = acc
 
     def create_input(self, label, hint):
-        return flet.TextField(
+        return ft.TextField(
             label=label,
             hint_text=hint,
             width=200,
-            border=flet.InputBorder.UNDERLINE,
+            border=ft.InputBorder.UNDERLINE,
             filled=True
         )
 
@@ -64,10 +68,10 @@ class UsernameChange:
         self.username_field = self.create_input("Username", "username")
 
         self.page.add(
-            flet.Text("Change Username",
+            ft.Text("Change Username",
                       color='black', size=25, weight='bold'),
             self.username_field,
-            flet.Button("Submit", on_click=self.submit)
+            ft.Button("Submit", on_click=self.submit)
         )
 
     def submit(self, e):
@@ -81,11 +85,11 @@ class EmailChange:
         self.acc = acc
 
     def create_input(self, label, hint):
-        return flet.TextField(
+        return ft.TextField(
             label=label,
             hint_text=hint,
             width=200,
-            border=flet.InputBorder.UNDERLINE,
+            border=ft.InputBorder.UNDERLINE,
             filled=True
         )
 
@@ -95,10 +99,10 @@ class EmailChange:
         self.email_field = self.create_input("Email", "email")
 
         self.page.add(
-            flet.Text("Change Email",
+            ft.Text("Change Email",
                       color='black', size=25, weight='bold'),
             self.email_field,
-            flet.Button("Submit", on_click=self.submit)
+            ft.Button("Submit", on_click=self.submit)
         )
 
     def submit(self, e):
@@ -112,11 +116,11 @@ class PassChange:
         self.acc = acc
 
     def create_input(self, label, hint):
-        return flet.TextField(
+        return ft.TextField(
             label=label,
             hint_text=hint,
             width=200,
-            border=flet.InputBorder.UNDERLINE,
+            border=ft.InputBorder.UNDERLINE,
             filled=True
         )
 
@@ -126,10 +130,10 @@ class PassChange:
         self.password_field = self.create_input("Password", "password")
 
         self.page.add(
-            flet.Text("Change Password",
+            ft.Text("Change Password",
                       color='black', size=25, weight='bold'),
             self.password_field,
-            flet.Button("Submit", on_click=self.submit)
+            ft.Button("Submit", on_click=self.submit)
         )
 
     def submit(self, e):

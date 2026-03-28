@@ -1,8 +1,8 @@
-import flet
+import flet as ft
 from ui_login import Account, MainScreen
 
 
-def main(page: flet.Page):
+def main(page: ft.Page):
     page.title = "Snuzzl"
     page.window.width = 360
     page.window.height = 640
@@ -15,4 +15,4 @@ def main(page: flet.Page):
     MainScreen(page, acc).show()
 
 
-flet.run(main)
+ft.run(main)
