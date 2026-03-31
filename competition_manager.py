@@ -1,15 +1,35 @@
+import asyncio
+
+from database_manager import DatabaseManager
+from database_models import Users
+
+from datetime import *
+
+dbm = DatabaseManager()
+
 class CompetitionManager:
-    def __init__(self):
+    def __init__(self, compname, comp_sdate, comp_edate):
+        self.compname = compname
+        self.comp_sdate = comp_sdate
+        self.comp_edate = comp_edate
+
+    async def createCompetition(self):
+        competition = await dbm.run(lambda: dbm.create_record(
+        dbm.models["Competitions"],
+        compname = self.compname,
+        comp_sdate = self.comp_sdate,
+        comp_edate = self.comp_edate
+    ))
+
+    def updateCompetition(self):
         pass
 
-    def createCompetition(self, user_id, competition_id):
+    def deleteCompetition(self):
         pass
 
-    def updateCompetition(self, user_id, competition_id):
+    def addToCompetition(self):
         pass
 
-    def deleteCompetition(self, user_id, competition_id):
-        pass
-
-    def addToCompetition(self, user_id, competition_id):
-        pass
+if __name__ == "__main__":
+    comp_manager = CompetitionManager("Test Competition", date(2026, 6, 1), date(2026, 12, 1))
+    comp_manager.createCompetition()   
