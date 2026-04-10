@@ -71,6 +71,7 @@ class AccountManager:
         if user and user.user_password == hashlib.sha256(password.encode('utf-8')).hexdigest():
             self.currentuser = username
             print(f"Hello: {username}")
+            print(user.username, user.user_email, user.user_dob)
             return True
         else:
             print("Invalid username or password")
