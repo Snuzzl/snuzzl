@@ -1,6 +1,7 @@
 import flet as ft
 import re
 from ui_account import Summary
+from ui_metrics import Metrics
 
 
 def is_valid_email(email):
@@ -33,7 +34,11 @@ class MainScreen:
                           on_click=self.login),
                 ft.Button("Create Account",
                           on_click=self.create_account)
-            ], alignment='center', spacing=20)
+            ], alignment='center', spacing=20),
+            ft.Button("View Metrics",
+                      on_click=lambda e:
+                      Metrics(self.page, self.acc).show()
+                      )
         )
 
     def login(self, e):

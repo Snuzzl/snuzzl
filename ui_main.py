@@ -4,7 +4,7 @@ from ui_login import Account, MainScreen
 
 def main(page: ft.Page):
     page.title = "Snuzzl"
-    page.window.width = 360
+    page.window.width = 500
     page.window.height = 640
     page.vertical_alignment = 'center'
     page.horizontal_alignment = 'center'
