@@ -42,6 +42,12 @@ class TaskUpdate(BaseModel):
     task_etime: str | None = None
 
 
+class RewardCreate(BaseModel):
+    chall_id: int
+    reward_name: str
+    reward_type: int
+
+
 @app.get("/tasks/{user_id}")
 async def get_tasks(user_id: int):
     tasks = await run_in_threadpool(task_mgr.get_tasks, user_id)
