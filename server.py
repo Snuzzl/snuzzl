@@ -5,10 +5,12 @@ from pydantic import BaseModel
 from database_connection import db
 from database_manager import DatabaseManager
 from task_manager import TaskManager
+from reward_manager import RewardManager
 
 # Shared instances so the server and task manager use one DB connection.
 db_manager = DatabaseManager()
 task_mgr = TaskManager(db=db_manager)
+reward_mgr = RewardManager(database_manager=db_manager)
 
 
 @asynccontextmanager
@@ -38,6 +40,12 @@ class TaskUpdate(BaseModel):
     task_date: str | None = None
     task_stime: str | None = None
     task_etime: str | None = None
+
+
+class RewardCreate(BaseModel):
+    chall_id: int
+    reward_name: str
+    reward_type: int
 
 
 @app.get("/tasks/{user_id}")
@@ -102,3 +110,23 @@ async def update_task(user_id: int, task_id: int, updates: TaskUpdate):
     if schedule_fields:
         await run_in_threadpool(task_mgr.update_schedule, user_id, task_id, **schedule_fields)
     return {"updated": True}
+
+
+@app.get("/rewards")
+async def get_rewards():
+    rewards = await run_in_threadpool(reward_mgr.get_all_rewards)
+    result = []
+    for reward in rewards:
+        result.append({
+            "reward_id": reward.reward_id,
+            "reward_name": reward.reward_name,
+            "chall_id": reward.chall_id_id,
+            "reward_type": reward.reward_type_id,
+        })
+    return {"rewards": result}
+
+
+@app.post("/rewards")
+async def add_reward(reward: RewardCreate):
+    created = await run_in_threadpool(reward_mgr.create_reward, reward.model_dump())
+    return {"created": True, "reward_id": created.reward_id}
