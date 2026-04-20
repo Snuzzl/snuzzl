@@ -2,7 +2,9 @@ import flet as ft
 import httpx
 
 user_id = 1
-base_url = f"http://127.0.0.1:8000/tasks/{user_id}"
+api_root = "http://127.0.0.1:8000"
+base_url = f"{api_root}/tasks/{user_id}"
+rewards_url = f"{api_root}/rewards"
 
 
 class TaskItem(ft.Column):
@@ -122,6 +124,7 @@ class TaskManagerApp(ft.Column):
     def __init__(self):
         super().__init__()
         self.task_list = ft.Column()
+        self.rewards_list = ft.Column()
 
         # Add-task form fields.
         self.name_field = ft.TextField(label="Task name")
@@ -137,7 +140,18 @@ class TaskManagerApp(ft.Column):
             self.add_btn,
         ])
 
-        self.controls = [self.add_form, ft.Divider(), self.task_list]
+        self.rewards_header = ft.Text("Rewards", size=20, weight=ft.FontWeight.BOLD)
+        self.reload_rewards_btn = ft.Button(content="Reload Rewards", on_click=self.load_rewards)
+
+        self.controls = [
+            self.add_form,
+            ft.Divider(),
+            self.task_list,
+            ft.Divider(),
+            self.rewards_header,
+            self.reload_rewards_btn,
+            self.rewards_list,
+        ]
 
     async def load_tasks(self):
         """Fetch all tasks from the server and populate the list."""
@@ -148,6 +162,26 @@ class TaskManagerApp(ft.Column):
         self.task_list.controls.clear()
         for task_data in data["tasks"]:
             self.task_list.controls.append(TaskItem(task_data, self.remove_task))
+        self.update()
+
+    async def load_rewards(self, e=None):
+        """Fetch all rewards from the server and populate the list."""
+        async with httpx.AsyncClient() as client:
+            response = await client.get(rewards_url)
+            data = response.json()
+
+        self.rewards_list.controls.clear()
+        rewards = data.get("rewards", [])
+        if not rewards:
+            self.rewards_list.controls.append(ft.Text("No rewards yet."))
+        else:
+            for reward in rewards:
+                text = (
+                    f"[{reward['reward_id']}] {reward['reward_name']} | "
+                    f"Challenge: {reward['chall_id']} | "
+                    f"Type: {reward['reward_type']}"
+                )
+                self.rewards_list.controls.append(ft.Text(text))
         self.update()
 
     async def add_task(self, e):
@@ -202,6 +236,7 @@ async def main(page: ft.Page):
 
     # Load existing tasks on startup.
     await app.load_tasks()
+    await app.load_rewards()
 
 
 ft.run(main, view=ft.AppView.WEB_BROWSER, port=8550)
