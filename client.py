@@ -3,7 +3,9 @@ import httpx
 from datetime import date, timedelta
 
 user_id = 1
-base_url = f"http://127.0.0.1:8000/tasks/{user_id}"
+api_root = "http://127.0.0.1:8000"
+base_url = f"{api_root}/tasks/{user_id}"
+rewards_url = f"{api_root}/rewards"
 
 class Menu(ft.Column):
     def __init__(self, go_to_tasks, go_to_metrics):
