@@ -108,25 +108,6 @@ class AccountManager:
         # Sync current user account to db, can be left for later
         pass
 
-class UserRoutines:
-    def __init__(self, user_id, rout_id):
-        self.user_id = user_id
-        self.rout_id = rout_id
-
-    async def addRoutine(self, user_id, rout_id):
-        user = await dbm.run(lambda: dbm.read_record(dbm.models["Users"], user_id))
-        routine = await dbm.run(lambda: dbm.read_record(dbm.models["Routines"], rout_id))
-        if user is None:
-            print("This User Doesn't Exist")
-            return
-        if routine is None:
-            print("This Routine Doesn't Exist")
-            return
-        await dbm.run(lambda: dbm.create_record(
-            dbm.models["UserRoutines"],
-            user_id=user_id,
-            rout_id=rout_id
-        ))
 
  
 if __name__ == "__main__": 
