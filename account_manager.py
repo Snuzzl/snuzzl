@@ -98,6 +98,7 @@ class AccountManager:
             return
    
     async def updatePassword(self, userid, new_password):
+        new_password = hashlib.sha256(new_password.encode('utf-8')).hexdigest()
         user = await dbm.run(lambda: dbm.update_record(dbm.models["Users"], userid, user_password=new_password))
         if user is None:
             print("This User Doesn't Exist")
