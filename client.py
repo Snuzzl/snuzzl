@@ -142,6 +142,18 @@ class TaskManagerApp(ft.Column):
 
         self.rewards_header = ft.Text("Rewards", size=20, weight=ft.FontWeight.BOLD)
         self.reload_rewards_btn = ft.Button(content="Reload Rewards", on_click=self.load_rewards)
+        self.reward_chall_id_field = ft.TextField(label="Challenge ID")
+        self.reward_name_field = ft.TextField(label="Reward name")
+        self.reward_type_field = ft.TextField(label="Reward type ID", on_submit=self.add_reward)
+        self.add_reward_btn = ft.Button(content="Add Reward", on_click=self.add_reward)
+        self.reward_feedback = ft.Text("")
+        self.add_reward_form = ft.Column([
+            self.reward_chall_id_field,
+            self.reward_name_field,
+            self.reward_type_field,
+            self.add_reward_btn,
+            self.reward_feedback,
+        ])
 
         self.controls = [
             self.add_form,
@@ -149,6 +161,7 @@ class TaskManagerApp(ft.Column):
             self.task_list,
             ft.Divider(),
             self.rewards_header,
+            self.add_reward_form,
             self.reload_rewards_btn,
             self.rewards_list,
         ]
@@ -183,6 +196,45 @@ class TaskManagerApp(ft.Column):
                 )
                 self.rewards_list.controls.append(ft.Text(text))
         self.update()
+
+    async def add_reward(self, e):
+        name = self.reward_name_field.value.strip() if self.reward_name_field.value else ""
+        chall_id = self.reward_chall_id_field.value.strip() if self.reward_chall_id_field.value else ""
+        reward_type = self.reward_type_field.value.strip() if self.reward_type_field.value else ""
+
+        if not name or not chall_id or not reward_type:
+            self.reward_feedback.value = "Please fill Challenge ID, Reward name, and Reward type ID."
+            self.reward_feedback.color = ft.Colors.RED
+            self.update()
+            return
+
+        try:
+            payload = {
+                "chall_id": int(chall_id),
+                "reward_name": name,
+                "reward_type": int(reward_type),
+            }
+        except ValueError:
+            self.reward_feedback.value = "Challenge ID and Reward type ID must be numbers."
+            self.reward_feedback.color = ft.Colors.RED
+            self.update()
+            return
+
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(rewards_url, json=payload)
+                response.raise_for_status()
+            self.reward_feedback.value = "Reward created."
+            self.reward_feedback.color = ft.Colors.GREEN
+            self.reward_chall_id_field.value = ""
+            self.reward_name_field.value = ""
+            self.reward_type_field.value = ""
+            await self.load_rewards()
+            await self.reward_name_field.focus()
+        except httpx.HTTPError as err:
+            self.reward_feedback.value = f"Failed to add reward: {err}"
+            self.reward_feedback.color = ft.Colors.RED
+            self.update()
 
     async def add_task(self, e):
         name = self.name_field.value
