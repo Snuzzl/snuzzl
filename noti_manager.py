@@ -41,7 +41,6 @@ class NotificationManager:
     def get_competition_deadlines(self, user_id):
         today = date.today()
 
-        # Join competitions through compParticipant
         deadlines = (
             Competitions
             .select()

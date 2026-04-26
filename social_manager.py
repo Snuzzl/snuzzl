@@ -9,11 +9,9 @@ class SocialManager:
         self.db = db
 
     def add_friend(self, user_id, friend_id):
-        # Prevent self-friend
         if user_id == friend_id:
             return {"error": "You cannot friend yourself"}
 
-        # Check if already exists
         existing = Friends.get_or_none(
             (Friends.user_id == user_id) & (Friends.friend_id == friend_id)
         )
@@ -21,7 +19,6 @@ class SocialManager:
         if existing:
             return {"error": "Friend request already exists or you are already friends"}
 
-        # Create two entries: sent + received
         Friends.create(
             user_id=user_id,
             friend_id=friend_id,
