@@ -228,3 +228,11 @@ CREATE TABLE routineTask(
     (task_id IS NOT NULL AND cust_id IS NULL)
     )
 );
+
+CREATE TABLE userRewards(
+    user_id INT NOT NULL,
+    reward_id INT NOT NULL,
+    PRIMARY KEY(user_id, reward_id),
+    FOREIGN KEY (user_id) REFERENCES users(user_id),
+    FOREIGN KEY (reward_id) REFERENCES rewards(reward_id)
+);
