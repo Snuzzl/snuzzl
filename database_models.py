@@ -244,6 +244,7 @@ class RoutineTask(BaseModel):
 class UserRewards(BaseModel):
     user_id = ForeignKeyField(Rewards, backref="userrewards", column_name="user_id")
     reward_id = ForeignKeyField(Rewards, backref="userrewards", column_name="reward_id")
+    reward_status = CharField()
     class Meta:
         table_name = "userrewards"
 
