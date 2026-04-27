@@ -7,6 +7,7 @@ api_root = "http://127.0.0.1:8000"
 base_url = f"{api_root}/tasks/{user_id}"
 rewards_url = f"{api_root}/rewards"
 user_rewards_url = f"{api_root}/rewards/user/{user_id}"
+challenges_url = f"{api_root}/challenges/{user_id}"
 
 class Menu(ft.Column):
     def __init__(self, go_to_tasks, go_to_metrics):
