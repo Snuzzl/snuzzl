@@ -82,6 +82,8 @@ class Metrics(BaseModel):
     met_id = AutoField()
     met_name = CharField(20)
     met_desc = CharField(250, null=True)
+    met_min = SmallIntegerField()
+    met_max = SmallIntegerField()
     met_type = ForeignKeyField(MetType, backref="metrics", column_name="met_type")
     class Meta:
         table_name = "metrics"

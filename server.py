@@ -5,10 +5,12 @@ from pydantic import BaseModel
 from database_connection import db
 from database_manager import DatabaseManager
 from task_manager import TaskManager
+from metric_manager import MetricManager
 
 # Shared instances so the server and task manager use one DB connection.
 db_manager = DatabaseManager()
 task_mgr = TaskManager(db=db_manager)
+metric_mgr = MetricManager(db=db_manager)
 
 
 @asynccontextmanager
@@ -102,3 +104,30 @@ async def update_task(user_id: int, task_id: int, updates: TaskUpdate):
     if schedule_fields:
         await run_in_threadpool(task_mgr.update_schedule, user_id, task_id, **schedule_fields)
     return {"updated": True}
+
+
+##### Metrics endpoints
+class MetricUpdate(BaseModel):
+    value: int | None = None
+
+
+@app.get("/metrics/{user_id}/{date}")
+async def get_metric_detail(user_id: int, date: str):
+    metrics = await run_in_threadpool(metric_mgr.read_user_metrics, user_id, date)
+    results = []
+    for metric in metrics:
+        results.append({
+            "metric_id": metric.met_id.met_id,
+            "metric_name": metric.met_id.met_name,
+            "metric_desc": metric.met_id.met_desc,
+            "metric_min": metric.met_id.met_min,
+            "metric_max": metric.met_id.met_max,
+            "metric_value": metric.metval_val,
+            "last_updated": str(metric.metval_date)
+            })
+    return results
+
+
+@app.put("/metrics/{user_id}/{metric_id}")
+async def update_metric(user_id: int, metric_id: int, payload: MetricUpdate):
+    await run_in_threadpool(metric_mgr.update_metric_value, user_id, metric_id, payload.value)
