@@ -6,6 +6,7 @@ from database_connection import db
 from database_manager import DatabaseManager
 from task_manager import TaskManager
 from reward_manager import RewardManager
+from database_models import UserChallenges, Challenges
 
 # Shared instances so the server and task manager use one DB connection.
 db_manager = DatabaseManager()
@@ -180,6 +181,29 @@ async def update_user_rewards(user_id: int, updates: UserRewardUpdate):
 class RewardClaim(BaseModel):
     reward_id: int
     status: str = "claimed"
+
+
+@app.get("/challenges/{user_id}")
+async def get_user_challenges(user_id: int):
+    def fetch():
+        rows = (
+            UserChallenges
+            .select(UserChallenges, Challenges)
+            .join(Challenges)
+            .where(UserChallenges.user_id == user_id)
+        )
+        return [
+            {
+                "chall_id": row.chall_id.chall_id,
+                "chall_name": row.chall_id.chall_name,
+                "chall_desc": row.chall_id.chall_desc,
+                "chall_sdate": str(row.chall_sdate),
+                "chall_edate": str(row.chall_edate),
+            }
+            for row in rows
+        ]
+    challenges = await run_in_threadpool(fetch)
+    return {"challenges": challenges}
 
 
 @app.post("/rewards/user/{user_id}/claim")
