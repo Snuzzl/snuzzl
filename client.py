@@ -123,12 +123,11 @@ class TaskItem(ft.Column):
 
 
 class RewardsPanel(ft.Column):
-    """Reward-specific UI and handlers, isolated from task management."""
     def __init__(self):
         super().__init__()
         self.rewards_list = ft.Column()
 
-        self.rewards_header = ft.Text("Rewards", size=20, weight=ft.FontWeight.BOLD)
+        self.rewards_header = ft.Text("rewards", size=20, weight=ft.FontWeight.BOLD)
         self.reload_rewards_btn = ft.Button(content="Reload Rewards", on_click=self.load_rewards)
         self.load_user_rewards_btn = ft.Button(content="Load My Rewards", on_click=self.load_user_rewards)
         self.filter_challenge_field = ft.TextField(label="Filter by Challenge ID", on_submit=self.load_challenge_rewards)
@@ -149,17 +148,17 @@ class RewardsPanel(ft.Column):
         self.reward_feedback = ft.Text("")
 
         self.add_reward_form = ft.Column([
-            ft.Text("Add a New Reward", size=16, weight=ft.FontWeight.BOLD),
+            ft.Text("add a reward", size=16, weight=ft.FontWeight.BOLD),
             self.reward_chall_id_field,
             self.reward_name_field,
             self.reward_type_field,
             self.add_reward_btn,
             ft.Divider(),
-            ft.Text("Claim a Reward", size=16, weight=ft.FontWeight.BOLD),
+            ft.Text("claim a reward", size=16, weight=ft.FontWeight.BOLD),
             self.claim_reward_id_field,
             self.claim_reward_btn,
             ft.Divider(),
-            ft.Text("Update User Reward(s)", size=16, weight=ft.FontWeight.BOLD),
+            ft.Text("update reward(s)", size=16, weight=ft.FontWeight.BOLD),
             self.update_reward_ids_field,
             self.update_reward_name_field,
             self.update_reward_type_field,
@@ -168,30 +167,54 @@ class RewardsPanel(ft.Column):
             self.reward_feedback,
         ])
 
+        self.loading_ring = ft.ProgressRing(visible=False, width=16, height=16, stroke_width=2, tooltip="Loading...")
         self.controls = [
-            self.rewards_header,
+            ft.Row([self.rewards_header, self.loading_ring]),
             ft.Row([self.reload_rewards_btn, self.load_user_rewards_btn]),
             ft.Row([self.filter_challenge_field, self.filter_challenge_btn]),
             self.add_reward_form,
             self.rewards_list,
         ]
 
+    def _set_loading(self, loading: bool):
+        self.loading_ring.visible = loading
+        self.reload_rewards_btn.disabled = loading
+        self.load_user_rewards_btn.disabled = loading
+        self.filter_challenge_btn.disabled = loading
+        self.add_reward_btn.disabled = loading
+        self.claim_reward_btn.disabled = loading
+        self.update_user_rewards_btn.disabled = loading
+        self.update()
+
     async def load_rewards(self, e=None):
-        """Fetch all rewards from the server and populate the list."""
-        async with httpx.AsyncClient() as client:
-            response = await client.get(rewards_url)
-            data = response.json()
-        self.render_rewards(data.get("rewards", []))
+        self._set_loading(True)
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(rewards_url)
+                data = response.json()
+            self.render_rewards(data.get("rewards", []))
+        except httpx.HTTPError:
+            self.reward_feedback.value = "couldn't load rewards, is the server running?"
+            self.reward_feedback.color = ft.Colors.RED
+            self.update()
+        finally:
+            self._set_loading(False)
 
     async def load_user_rewards(self, e=None):
-        """Fetch rewards visible to the current user and populate the list."""
-        async with httpx.AsyncClient() as client:
-            response = await client.get(user_rewards_url)
-            data = response.json()
-        self.render_rewards(data.get("rewards", []))
+        self._set_loading(True)
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(user_rewards_url)
+                data = response.json()
+            self.render_rewards(data.get("rewards", []))
+        except httpx.HTTPError:
+            self.reward_feedback.value = "couldn't load your rewards, is the server running?"
+            self.reward_feedback.color = ft.Colors.RED
+            self.update()
+        finally:
+            self._set_loading(False)
 
     async def load_challenge_rewards(self, e=None):
-        """Fetch rewards for one challenge ID."""
         chall_id = self.filter_challenge_field.value.strip() if self.filter_challenge_field.value else ""
         if not chall_id:
             await self.load_rewards()
@@ -200,21 +223,28 @@ class RewardsPanel(ft.Column):
         try:
             challenge_id = int(chall_id)
         except ValueError:
-            self.reward_feedback.value = "Challenge filter must be a number."
+            self.reward_feedback.value = "challenge id needs to be a number"
             self.reward_feedback.color = ft.Colors.RED
             self.update()
             return
 
-        async with httpx.AsyncClient() as client:
-            response = await client.get(f"{api_root}/rewards/challenge/{challenge_id}")
-            data = response.json()
-        self.render_rewards(data.get("rewards", []))
+        self._set_loading(True)
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(f"{api_root}/rewards/challenge/{challenge_id}")
+                data = response.json()
+            self.render_rewards(data.get("rewards", []))
+        except httpx.HTTPError:
+            self.reward_feedback.value = "couldn't load rewards for that challenge"
+            self.reward_feedback.color = ft.Colors.RED
+            self.update()
+        finally:
+            self._set_loading(False)
 
     def render_rewards(self, rewards):
-        """Render a rewards list in one place for all reward views."""
         self.rewards_list.controls.clear()
         if not rewards:
-            self.rewards_list.controls.append(ft.Text("No rewards yet."))
+            self.rewards_list.controls.append(ft.Text("nothing here yet"))
         else:
             for reward in rewards:
                 text = (
@@ -231,7 +261,7 @@ class RewardsPanel(ft.Column):
         reward_type = self.reward_type_field.value.strip() if self.reward_type_field.value else ""
 
         if not name or not chall_id or not reward_type:
-            self.reward_feedback.value = "Please fill Challenge ID, Reward name, and Reward type ID."
+            self.reward_feedback.value = "fill in all three fields first"
             self.reward_feedback.color = ft.Colors.RED
             self.update()
             return
@@ -243,7 +273,7 @@ class RewardsPanel(ft.Column):
                 "reward_type": int(reward_type),
             }
         except ValueError:
-            self.reward_feedback.value = "Challenge ID and Reward type ID must be numbers."
+            self.reward_feedback.value = "challenge id and type id need to be numbers"
             self.reward_feedback.color = ft.Colors.RED
             self.update()
             return
@@ -252,7 +282,7 @@ class RewardsPanel(ft.Column):
             async with httpx.AsyncClient() as client:
                 response = await client.post(rewards_url, json=payload)
                 response.raise_for_status()
-            self.reward_feedback.value = "Reward created."
+            self.reward_feedback.value = "reward added!"
             self.reward_feedback.color = ft.Colors.GREEN
             self.reward_chall_id_field.value = ""
             self.reward_name_field.value = ""
@@ -260,21 +290,21 @@ class RewardsPanel(ft.Column):
             await self.load_rewards()
             await self.reward_name_field.focus()
         except httpx.HTTPError as err:
-            self.reward_feedback.value = f"Failed to add reward: {err}"
+            self.reward_feedback.value = f"couldn't add it: {err}"
             self.reward_feedback.color = ft.Colors.RED
             self.update()
 
     async def claim_reward(self, e):
         reward_id_raw = self.claim_reward_id_field.value.strip() if self.claim_reward_id_field.value else ""
         if not reward_id_raw:
-            self.reward_feedback.value = "Please enter a Reward ID to claim."
+            self.reward_feedback.value = "enter a reward id first"
             self.reward_feedback.color = ft.Colors.RED
             self.update()
             return
         try:
             reward_id = int(reward_id_raw)
         except ValueError:
-            self.reward_feedback.value = "Reward ID must be a number."
+            self.reward_feedback.value = "that needs to be a number"
             self.reward_feedback.color = ft.Colors.RED
             self.update()
             return
@@ -285,13 +315,13 @@ class RewardsPanel(ft.Column):
                     json={"reward_id": reward_id}
                 )
                 response.raise_for_status()
-            self.reward_feedback.value = f"Reward {reward_id} claimed!"
+            self.reward_feedback.value = f"reward {reward_id} claimed!"
             self.reward_feedback.color = ft.Colors.GREEN
             self.claim_reward_id_field.value = ""
             await self.load_user_rewards()
         except httpx.HTTPStatusError as err:
             detail = err.response.json().get("detail", str(err))
-            self.reward_feedback.value = f"Failed to claim: {detail}"
+            self.reward_feedback.value = f"couldn't claim it: {detail}"
             self.reward_feedback.color = ft.Colors.RED
             self.update()
 
@@ -309,7 +339,7 @@ class RewardsPanel(ft.Column):
                 else:
                     payload["reward_ids"] = reward_ids
             except ValueError:
-                self.reward_feedback.value = "Reward IDs must be numbers separated by commas."
+                self.reward_feedback.value = "ids need to be numbers, comma separated"
                 self.reward_feedback.color = ft.Colors.RED
                 self.update()
                 return
@@ -321,13 +351,13 @@ class RewardsPanel(ft.Column):
             try:
                 payload["reward_type"] = int(new_type)
             except ValueError:
-                self.reward_feedback.value = "New reward type ID must be a number."
+                self.reward_feedback.value = "type id needs to be a number"
                 self.reward_feedback.color = ft.Colors.RED
                 self.update()
                 return
 
         if not payload:
-            self.reward_feedback.value = "Enter at least one update field."
+            self.reward_feedback.value = "nothing to update, fill in at least one field"
             self.reward_feedback.color = ft.Colors.RED
             self.update()
             return
@@ -337,50 +367,57 @@ class RewardsPanel(ft.Column):
                 response = await client.put(f"{api_root}/rewards/user/{user_id}", json=payload)
                 response.raise_for_status()
                 data = response.json()
-            self.reward_feedback.value = f"Updated {data.get('updated', 0)} reward(s)."
+            self.reward_feedback.value = f"done, updated {data.get('updated', 0)} reward(s)"
             self.reward_feedback.color = ft.Colors.GREEN
             await self.load_user_rewards()
         except httpx.HTTPError as err:
-            self.reward_feedback.value = f"Failed to update user rewards: {err}"
+            self.reward_feedback.value = f"couldn't update: {err}"
             self.reward_feedback.color = ft.Colors.RED
             self.update()
 
 
 class ChallengesPanel(ft.Column):
-    """Challenge-specific UI, isolated from task and reward management."""
     def __init__(self):
         super().__init__()
         self.challenges_list = ft.Column()
-        self.challenges_header = ft.Text("My Challenges", size=20, weight=ft.FontWeight.BOLD)
-        self.load_challenges_btn = ft.Button(content="Load My Challenges", on_click=self.load_challenges)
+        self.challenges_header = ft.Text("my challenges", size=20, weight=ft.FontWeight.BOLD)
+        self.load_challenges_btn = ft.Button(content="load my challenges", on_click=self.load_challenges)
         self.challenges_feedback = ft.Text("")
+        self.challenges_loading = ft.ProgressRing(visible=False, width=16, height=16, stroke_width=2, tooltip="Loading...")
 
         self.controls = [
-            self.challenges_header,
+            ft.Row([self.challenges_header, self.challenges_loading]),
             self.load_challenges_btn,
             self.challenges_feedback,
             self.challenges_list,
         ]
 
     async def load_challenges(self, e=None):
+        self.challenges_loading.visible = True
+        self.load_challenges_btn.disabled = True
+        self.update()
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.get(challenges_url)
                 response.raise_for_status()
                 data = response.json()
             self._render_challenges(data.get("challenges", []))
-        except httpx.HTTPError as err:
-            self.challenges_feedback.value = f"Failed to load challenges: {err}"
+        except httpx.HTTPError:
+            self.challenges_feedback.value = "couldn't load challenges, is the server running?"
             self.challenges_feedback.color = ft.Colors.RED
+            self.update()
+        finally:
+            self.challenges_loading.visible = False
+            self.load_challenges_btn.disabled = False
             self.update()
 
     def _render_challenges(self, challenges):
         self.challenges_list.controls.clear()
         if not challenges:
-            self.challenges_list.controls.append(ft.Text("No challenges found."))
+            self.challenges_list.controls.append(ft.Text("no challenges yet"))
         else:
             for ch in challenges:
-                desc = ch['chall_desc'] or "No description"
+                desc = ch['chall_desc'] or "no description"
                 text = (
                     f"[{ch['chall_id']}] {ch['chall_name']} — {desc} "
                     f"| {ch['chall_sdate']} to {ch['chall_edate']}"
