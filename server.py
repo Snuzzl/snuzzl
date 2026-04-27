@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from contextlib import asynccontextmanager
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
@@ -46,6 +46,12 @@ class RewardCreate(BaseModel):
     chall_id: int
     reward_name: str
     reward_type: int
+
+
+class UserRewardUpdate(BaseModel):
+    reward_ids: list[int] | int | None = None
+    reward_name: str | None = None
+    reward_type: int | None = None
 
 
 @app.get("/tasks/{user_id}")
