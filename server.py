@@ -175,3 +175,17 @@ async def update_user_rewards(user_id: int, updates: UserRewardUpdate):
     reward_ids = payload.pop("reward_ids", None)
     updated = await run_in_threadpool(reward_mgr.update_user_rewards, user_id, reward_ids, **payload)
     return {"updated": updated}
+
+
+class RewardClaim(BaseModel):
+    reward_id: int
+    status: str = "claimed"
+
+
+@app.post("/rewards/user/{user_id}/claim")
+async def claim_reward(user_id: int, claim: RewardClaim):
+    try:
+        await run_in_threadpool(reward_mgr.claim_reward, user_id, claim.reward_id, claim.status)
+        return {"claimed": True, "reward_id": claim.reward_id}
+    except ValueError as err:
+        raise HTTPException(status_code=400, detail=str(err))
