@@ -138,6 +138,9 @@ class RewardsPanel(ft.Column):
         self.reward_type_field = ft.TextField(label="Reward type ID", on_submit=self.add_reward)
         self.add_reward_btn = ft.Button(content="Add Reward", on_click=self.add_reward)
 
+        self.claim_reward_id_field = ft.TextField(label="Reward ID to claim", on_submit=self.claim_reward)
+        self.claim_reward_btn = ft.Button(content="Claim Reward", on_click=self.claim_reward)
+
         self.update_reward_ids_field = ft.TextField(label="Reward IDs to update (comma-separated, optional)")
         self.update_reward_name_field = ft.TextField(label="New reward name (optional)")
         self.update_reward_type_field = ft.TextField(label="New reward type ID (optional)", on_submit=self.update_user_rewards)
@@ -150,6 +153,10 @@ class RewardsPanel(ft.Column):
             self.reward_name_field,
             self.reward_type_field,
             self.add_reward_btn,
+            ft.Divider(),
+            ft.Text("Claim a Reward", size=16, weight=ft.FontWeight.BOLD),
+            self.claim_reward_id_field,
+            self.claim_reward_btn,
             ft.Divider(),
             ft.Text("Update User Reward(s)", size=16, weight=ft.FontWeight.BOLD),
             self.update_reward_ids_field,
@@ -253,6 +260,37 @@ class RewardsPanel(ft.Column):
             await self.reward_name_field.focus()
         except httpx.HTTPError as err:
             self.reward_feedback.value = f"Failed to add reward: {err}"
+            self.reward_feedback.color = ft.Colors.RED
+            self.update()
+
+    async def claim_reward(self, e):
+        reward_id_raw = self.claim_reward_id_field.value.strip() if self.claim_reward_id_field.value else ""
+        if not reward_id_raw:
+            self.reward_feedback.value = "Please enter a Reward ID to claim."
+            self.reward_feedback.color = ft.Colors.RED
+            self.update()
+            return
+        try:
+            reward_id = int(reward_id_raw)
+        except ValueError:
+            self.reward_feedback.value = "Reward ID must be a number."
+            self.reward_feedback.color = ft.Colors.RED
+            self.update()
+            return
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{api_root}/rewards/user/{user_id}/claim",
+                    json={"reward_id": reward_id}
+                )
+                response.raise_for_status()
+            self.reward_feedback.value = f"Reward {reward_id} claimed!"
+            self.reward_feedback.color = ft.Colors.GREEN
+            self.claim_reward_id_field.value = ""
+            await self.load_user_rewards()
+        except httpx.HTTPStatusError as err:
+            detail = err.response.json().get("detail", str(err))
+            self.reward_feedback.value = f"Failed to claim: {detail}"
             self.reward_feedback.color = ft.Colors.RED
             self.update()
 
