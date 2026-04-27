@@ -1,6 +1,6 @@
 import flet as ft
 import httpx
-from datetime import date
+from datetime import date, timedelta
 
 user_id = 1
 base_url = f"http://127.0.0.1:8000/tasks/{user_id}"
@@ -206,15 +206,19 @@ class TaskManagerApp(ft.Column):
 
 class MetricItem(ft.Column):
     def __init__(self, metric_data):
-        super().__init__()
+        super().__init__(horizontal_alignment=ft.CrossAxisAlignment.CENTER)
         self.metric_data = metric_data
+        self.system_metrics = ["Productivity", "Fun", "Rest", "Emotional Health", "Physical Health"]
 
         # Display elements
         self.title = ft.Text(self.metric_data["metric_name"], weight=ft.FontWeight.BOLD)
         self.value_text = ft.Text(self._value_text())
 
         self.view_btn = ft.Button(content="Info", on_click=self.toggle_info)
-        self.update_btn = ft.Button(content="Update", on_click=self.show_edit)
+        if self.metric_data["metric_name"] in self.system_metrics:
+            self.update_btn = ft.Button(content="Update", on_click=self.show_edit, visible=False)
+        else:
+            self.update_btn = ft.Button(content="Update", on_click=self.show_edit)
 
         # Info section (hidden initially)
         self.info_section = ft.Column(
@@ -245,7 +249,7 @@ class MetricItem(ft.Column):
         self.controls = [
             self.title,
             self.value_text,
-            ft.Row([self.view_btn, self.update_btn]),
+            ft.Row([self.view_btn, self.update_btn], alignment=ft.CrossAxisAlignment.CENTER),
             self.info_section,
             self.edit_section,
             ft.Divider(),
@@ -293,7 +297,7 @@ class MetricItem(ft.Column):
                 payload = {"value": value}
                 async with httpx.AsyncClient() as client:
                     response = await client.put(f"http://127.0.0.1:8000/metrics/{user_id}/{metric_id}", json=payload)
-                # If server response is successful, update local variables for value and date
+                # If server response is successful, update local variables for value and date (saves querying db for page refresh)
                 if response.is_success:    
                     self.metric_data["metric_value"] = self.value_field.value
                     self.info_section.controls[1].value = f"Last Updated: {date.today().strftime('%Y-%m-%d')}"
@@ -314,33 +318,71 @@ class MetricItem(ft.Column):
 
 class MetricManagerApp(ft.Column):
     def __init__(self):
-        super().__init__()
+        super().__init__(horizontal_alignment=ft.CrossAxisAlignment.CENTER)
 
+        # Set current date to Monday of this week
+        self.current_date = date.today() - timedelta(days=date.weekday(date.today()))
+        # Column to store MetricItem objects
         self.metric_list = ft.Column()
         self.error_message = ft.Text("Loading...")
+        self.wellbeing_score = ft.Text("Wellbeing Score: ")
+
+        # Text for week currently displayed, back and forward buttons
+        self.current_date_text = ft.Text(self.current_date.strftime("%Y-%m-%d") + " To " + (self.current_date + timedelta(days=7)).strftime("%Y-%m-%d"))
+        self.back_button = ft.Button(content="← " + (self.current_date - timedelta(days=7)).strftime("%Y-%m-%d"), on_click=self.go_back)
+        self.forward_button = ft.Button(content="→", on_click=self.go_forward, visible=False)
 
         self.controls = [
             ft.Text("Metric Manager", size=25, weight=ft.FontWeight.BOLD),
+            self.current_date_text,
+            ft.Row([self.back_button, self.forward_button], alignment=ft.CrossAxisAlignment.CENTER),
+            self.wellbeing_score,
             self.error_message,
             ft.Divider(),
             self.metric_list,
         ]
 
-    async def load_metrics(self):
+    def update_buttons(self):
+    # Update dates on back and forward buttons
+        self.current_date_text.value = self.current_date.strftime("%Y-%m-%d") + " To " + (self.current_date + timedelta(days=7)).strftime("%Y-%m-%d")
+        self.back_button.content = "← " + (self.current_date - timedelta(days=7)).strftime("%Y-%m-%d")
+        if self.current_date != (date.today() - timedelta(days=date.weekday(date.today()))):
+            self.forward_button.content = (self.current_date + timedelta(days=7)).strftime("%Y-%m-%d") + " →"
+            self.forward_button.visible = True
+        else:
+            self.forward_button.visible = False
+
+    async def go_back(self, e):
+        #Update current date text, buttons and metrics
+        self.current_date -= timedelta(days=7)
+        self.update_buttons()
+        await self.load_metrics(self.current_date + timedelta(days=7))
+        self.update()
+
+    async def go_forward(self, e):
+        #Update current date text, buttons and metrics
+        self.current_date += timedelta(days=7)
+        self.update_buttons()
+        await self.load_metrics(self.current_date + timedelta(days=7))
+        self.update()
+
+    async def load_metrics(self, date=date.today()):
         try:
             async with httpx.AsyncClient() as client:
-                response = await client.get(f"http://127.0.0.1:8000/metrics/{user_id}")
+                response = await client.get(f"http://127.0.0.1:8000/metrics/{user_id}/{date.strftime('%Y-%m-%d')}")
                 # Raises an error if request fails
                 response.raise_for_status()
                 data = response.json()
 
             self.metric_list.controls.clear()
-
+            wellbeing_score = 0
             # Iterate through response to add each metric to the display
             for metric_data in data:
                 self.metric_list.controls.append(MetricItem(metric_data))
+                wellbeing_score += metric_data["metric_value"]
             # Reset error/loading message
             self.error_message.visible = False
+            self.wellbeing_score.value = f"Wellbeing Score: {wellbeing_score}"
             self.update()
         except:
             self.error_message.value = "Server error"

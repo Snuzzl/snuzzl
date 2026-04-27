@@ -111,9 +111,9 @@ class MetricUpdate(BaseModel):
     value: int | None = None
 
 
-@app.get("/metrics/{user_id}")
-async def get_metric_detail(user_id: int):
-    metrics = await run_in_threadpool(metric_mgr.read_user_metrics, user_id)
+@app.get("/metrics/{user_id}/{date}")
+async def get_metric_detail(user_id: int, date: str):
+    metrics = await run_in_threadpool(metric_mgr.read_user_metrics, user_id, date)
     results = []
     for metric in metrics:
         results.append({
