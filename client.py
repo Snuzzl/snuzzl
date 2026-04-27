@@ -12,8 +12,8 @@ class Menu(ft.Column):
 
         self.controls = [
             ft.Text("Main Menu", size=30, weight=ft.FontWeight.BOLD),
-            ft.Button("Open Task Manager", on_click=go_to_tasks),
-            ft.Button("Open Metric Manager", on_click=go_to_metrics),
+            ft.Button("Open Task Manager", on_click=go_to_tasks, label="Task Manager Button"),
+            ft.Button("Open Metric Manager", on_click=go_to_metrics, label="Metric Manager Button"),
         ]
 
 
@@ -214,11 +214,11 @@ class MetricItem(ft.Column):
         self.title = ft.Text(self.metric_data["metric_name"], weight=ft.FontWeight.BOLD)
         self.value_text = ft.Text(self._value_text())
 
-        self.view_btn = ft.Button(content="Info", on_click=self.toggle_info)
+        self.view_btn = ft.Button(content="Info", on_click=self.toggle_info, label="Info Button")
         if self.metric_data["metric_name"] in self.system_metrics:
-            self.update_btn = ft.Button(content="Update", on_click=self.show_edit, visible=False)
+            self.update_btn = ft.Button(content="Update", on_click=self.show_edit, visible=False, label="Update Button")
         else:
-            self.update_btn = ft.Button(content="Update", on_click=self.show_edit)
+            self.update_btn = ft.Button(content="Update", on_click=self.show_edit, label="Update Button")
 
         # Info section (hidden initially)
         self.info_section = ft.Column(
@@ -233,8 +233,8 @@ class MetricItem(ft.Column):
 
         # Edit section (hidden initially)
         self.value_field = ft.TextField(label="New value")
-        self.save_btn = ft.Button(content="Save", on_click=self.save_update)
-        self.cancel_btn = ft.Button(content="Cancel", on_click=self.hide_edit)
+        self.save_btn = ft.Button(content="Save", on_click=self.save_update, label="Save Button")
+        self.cancel_btn = ft.Button(content="Cancel", on_click=self.hide_edit, label="Cancel Button")
         self.error_message = ft.Text("", visible=False)
 
         self.edit_section = ft.Column(
@@ -329,8 +329,8 @@ class MetricManagerApp(ft.Column):
 
         # Text for week currently displayed, back and forward buttons
         self.current_date_text = ft.Text(self.current_date.strftime("%Y-%m-%d") + " To " + (self.current_date + timedelta(days=7)).strftime("%Y-%m-%d"))
-        self.back_button = ft.Button(content="← " + (self.current_date - timedelta(days=7)).strftime("%Y-%m-%d"), on_click=self.go_back)
-        self.forward_button = ft.Button(content="→", on_click=self.go_forward, visible=False)
+        self.back_button = ft.Button(content="← " + (self.current_date - timedelta(days=7)).strftime("%Y-%m-%d"), on_click=self.go_back, label="Previous Week Button")
+        self.forward_button = ft.Button(content="→", on_click=self.go_forward, visible=False, label="Next Week Button")
 
         self.controls = [
             ft.Text("Metric Manager", size=25, weight=ft.FontWeight.BOLD),
@@ -408,7 +408,7 @@ async def main(page: ft.Page):
         page.add(Menu(show_tasks, show_metrics))
         page.update()
     
-    menu_button = ft.Button("← Back to Menu", on_click=show_menu)
+    menu_button = ft.Button("← Back to Menu", on_click=show_menu, label="Menu Button")
 
     async def show_tasks(e=None):
         page.controls.clear()
