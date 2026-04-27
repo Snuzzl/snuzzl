@@ -110,6 +110,15 @@ CREATE TABLE rewards(
     FOREIGN KEY (reward_type) REFERENCES rewardType(type_id),
     FOREIGN KEY (chall_id) REFERENCES challenges(chall_id)
 );
+CREATE TYPE ur_status AS ENUM('Complete', 'Incomplete');
+CREATE TABLE userRewards(
+    user_id INT NOT NULL,
+    reward_id INT NOT NULL,
+    reward_status ur_status NOT NULL,
+    PRIMARY KEY(user_id, reward_id),
+    FOREIGN KEY (user_id) REFERENCES users(user_id),
+    FOREIGN KEY (reward_id) REFERENCES rewards(reward_id)
+);
 CREATE TABLE competitions(
     comp_id SERIAL PRIMARY KEY,
     comp_name VARCHAR(50) NOT NULL,
