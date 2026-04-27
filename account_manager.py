@@ -52,23 +52,30 @@ class AccountManager:
         user = await dbm.run(lambda: dbm.read_record(dbm.models["Users"], 9))
         if user is None:
             print("This User Doesn't Exist")
+            return None
         else:
-            print("Fetched User:", user.username)
+            print("Fetched User:", user.username,user.fname, user.user_email, user.user_dob)
+            return user
+    
+    async def readAllUsers(self):
+        Users = await dbm.run(lambda: list(dbm.models["Users"].select()))
+        if not Users:
+            print("No users found")
+            return []
+        for u in Users:
+            print(u.user_id, u.username, u.user_fname, u.user_email, u.user_dob)
+        return Users
 
-    def login(self):
-        print("---Login Page---")
-        username = input("Enter username: ")
-        password = input("Enter password: ")
-        for account in self.accounts:
-            if account.username == username and account.password == password:
-                self.currentUser = username
-                print(f"Hello: {username}")
-                print(account)
-                return True
-            else:
-                print("Invalid username or password")
-                return False
-        pass
+    def login(self,username, password):
+        user = asyncio.run(self.readAccount(username))
+        if user and user.user_password == hashlib.sha256(password.encode('utf-8')).hexdigest():
+            self.currentuser = username
+            print(f"Hello: {username}")
+            print(user.username, user.user_email, user.user_dob)
+            return True
+        else:
+            print("Invalid username or password")
+            return False
 
     def logout(self):
         self.currentUser = "Guest"
