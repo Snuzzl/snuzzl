@@ -24,9 +24,13 @@ app = FastAPI(lifespan=lifespan)
 
 
 # Request body schemas for endpoints that need structured input.
-class TaskCreate(BaseModel):
+class CustomTaskCreate(BaseModel):
     name: str
     description: str | None = None
+
+
+class CustomTaskAssign(BaseModel):
+    cust_id: int
     date: str
     start_time: str
     end_time: str
@@ -61,12 +65,20 @@ async def get_tasks(user_id: int):
 
 
 @app.post("/tasks/{user_id}")
-async def add_task(user_id: int, task: TaskCreate):
+async def add_task(user_id: int, task: CustomTaskCreate):
     new_task = await run_in_threadpool(
-        task_mgr.add_task, user_id, task.name, task.date,
-        task.start_time, task.end_time, task.description
+        task_mgr.add_task, user_id, task.name, task.description
     )
     return {"cust_id": new_task.cust_id}
+
+
+@app.post("/tasks/{user_id}/assign-custom")
+async def assign_custom_task(user_id: int, body: CustomTaskAssign):
+    await run_in_threadpool(
+        task_mgr.assign_custom,
+        user_id, body.cust_id, body.date, body.start_time, body.end_time
+    )
+    return {"assigned": True}
 
 
 @app.delete("/tasks/{user_id}/{cust_id}")

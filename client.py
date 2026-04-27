@@ -16,9 +16,6 @@ class CustomTaskForm(ft.ExpansionTile):
 
         self.name_field = ft.TextField(label="Task name", autofocus=True)
         self.desc_field = ft.TextField(label="Description (optional)", multiline=True)
-        self.date_field = ft.TextField(label="Date (YYYY-MM-DD)")
-        self.stime_field = ft.TextField(label="Start time (HH:MM)")
-        self.etime_field = ft.TextField(label="End time (HH:MM)", on_submit=self.submit)
 
         self.status_text = ft.Text("", size=12, color=ft.Colors.GREY_600)
 
@@ -30,8 +27,6 @@ class CustomTaskForm(ft.ExpansionTile):
             controls=[
                 self.name_field,
                 self.desc_field,
-                self.date_field,
-                ft.Row([self.stime_field, self.etime_field]),
                 ft.Button("Add Task", on_click=self.submit),
                 self.status_text,
             ],
@@ -48,9 +43,6 @@ class CustomTaskForm(ft.ExpansionTile):
         payload = {
             "name": name,
             "description": self.desc_field.value.strip() or None,
-            "date": self.date_field.value.strip(),
-            "start_time": self.stime_field.value.strip(),
-            "end_time": self.etime_field.value.strip(),
         }
 
         async with httpx.AsyncClient() as client:
@@ -66,9 +58,6 @@ class CustomTaskForm(ft.ExpansionTile):
         # Clear form.
         self.name_field.value = ""
         self.desc_field.value = ""
-        self.date_field.value = ""
-        self.stime_field.value = ""
-        self.etime_field.value = ""
         self.status_text.value = "Task added!"
         self.status_text.color = ft.Colors.GREEN
         self.update()
@@ -198,6 +187,7 @@ class CatalogCategory(ft.ExpansionTile):
             title=ft.Text(type_name, weight=ft.FontWeight.BOLD),
             leading=ft.Icon(self._icon_for_category(type_name)),
             controls=task_rows,
+            tile_padding=ft.Padding(left=0, right=0, top=0, bottom=0),
         )
 
     def _icon_for_category(self, name):
@@ -331,6 +321,30 @@ class MyTaskItem(ft.Container):
         self.edit_stime = ft.TextField(label="Start (HH:MM)", value=task_data["task_stime"])
         self.edit_etime = ft.TextField(label="End (HH:MM)", value=task_data["task_etime"])
 
+        # Assign button for custom tasks that aren't assigned yet.
+        self.assign_btn = None
+        if self.is_custom and not task_data.get("task_date"):
+            self.assign_btn = ft.Button(
+                "Assign",
+                icon=ft.Icons.ADD_TASK,
+                on_click=self.show_assign_form,
+            )
+            self.assign_date = ft.TextField(label="Date (YYYY-MM-DD)")
+            self.assign_stime = ft.TextField(label="Start (HH:MM)")
+            self.assign_etime = ft.TextField(label="End (HH:MM)")
+            self.assign_form = ft.Column(
+                visible=False,
+                controls=[
+                    ft.Text("Schedule this task:", weight=ft.FontWeight.BOLD),
+                    self.assign_date,
+                    ft.Row([self.assign_stime, self.assign_etime]),
+                    ft.Row([
+                        ft.Button("Save", on_click=self.save_assign),
+                        ft.Button("Cancel", on_click=self.hide_assign),
+                    ]),
+                ],
+            )
+
         edit_fields = []
         if self.is_custom:
             edit_fields.extend([self.edit_name, self.edit_desc])
@@ -348,16 +362,21 @@ class MyTaskItem(ft.Container):
         )
 
         # Assemble the row.
-        header = ft.Row(
-            controls=[
-                self.badge,
-                self.name_text,
-                self.status_btn,
-                self.edit_btn,
-                self.delete_btn,
-            ]
-        )
-        self.content = ft.Column(controls=[header, self.desc_text, self.time_text, self.edit_view])
+        header_controls = [
+            self.badge,
+            self.name_text,
+            self.status_btn,
+            self.edit_btn,
+            self.delete_btn,
+        ]
+        if self.assign_btn:
+            header_controls.insert(3, self.assign_btn)
+
+        header = ft.Row(controls=header_controls)
+        content_controls = [header, self.desc_text, self.time_text, self.edit_view]
+        if self.assign_btn:
+            content_controls.append(self.assign_form)
+        self.content = ft.Column(controls=content_controls)
         self.border = ft.Border.all(1, ft.Colors.GREY_300)
         self.border_radius = 8
         self.padding = 10
@@ -463,6 +482,39 @@ class MyTaskItem(ft.Container):
         self.edit_view.visible = False
         self.update()
         await self.on_update(self.task_data)
+
+    async def save_assign(self, e):
+        if not self.assign_date.value or not self.assign_stime.value or not self.assign_etime.value:
+            return
+
+        payload = {
+            "cust_id": self.task_data["cust_id"],
+            "date": self.assign_date.value,
+            "start_time": self.assign_stime.value,
+            "end_time": self.assign_etime.value,
+        }
+
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.post(
+                    f"{BASE}/tasks/{user_id}/assign-custom", json=payload
+                )
+                response.raise_for_status()
+            except Exception:
+                return
+
+        self.assign_form.visible = False
+        self.assign_btn.visible = False
+        self.update()
+        await self.on_update(self.task_data)
+
+    def show_assign_form(self, e):
+        self.assign_form.visible = True
+        self.update()
+
+    def hide_assign(self, e):
+        self.assign_form.visible = False
+        self.update()
 
     async def delete_task(self, e):
         if self.is_custom:

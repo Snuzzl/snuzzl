@@ -6,31 +6,28 @@ class TaskManager:
         # Database manager gets passed in from managers.py so we share one instance.
         self._db = db
 
-    def add_task(self, user, name, date, start_time, end_time, description=None):
-        # Custom tasks need a name and a time window to complete them by.
+    def add_task(self, user, name, description=None):
+        """Create a custom task in the customTask table (no assignment)."""
         if not name or not name.strip():
             raise ValueError("Task name cannot be empty")
-        if not date or not start_time or not end_time:
-            raise ValueError("Task must have a date, start time, and end time")
 
-        # Create the custom task record first.
         custom_task = self._db.create_record(
             CustomTasks, cust_name=name, cust_desc=description
         )
+        return custom_task
 
-        # Then link it to the user with scheduling info via UserTask.
-        # task_id is left NULL; cust_id holds the reference to this custom task.
+    def assign_custom(self, user_id, cust_id, date, start_time, end_time):
+        """Assign an existing custom task to a user with scheduling info."""
         self._db.create_record(
             UserTask,
-            user_id=user,
+            user_id=user_id,
             task_id=None,
-            cust_id=custom_task,
+            cust_id=cust_id,
             task_complete=False,
             task_date=date,
             task_stime=start_time,
             task_etime=end_time,
         )
-        return custom_task
 
     def remove_task(self, user_id, cust_id):
         # Remove the user-task link first, then the custom task itself.
