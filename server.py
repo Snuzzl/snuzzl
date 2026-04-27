@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from contextlib import asynccontextmanager
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
@@ -46,6 +46,12 @@ class RewardCreate(BaseModel):
     chall_id: int
     reward_name: str
     reward_type: int
+
+
+class UserRewardUpdate(BaseModel):
+    reward_ids: list[int] | int | None = None
+    reward_name: str | None = None
+    reward_type: int | None = None
 
 
 @app.get("/tasks/{user_id}")
@@ -128,5 +134,44 @@ async def get_rewards():
 
 @app.post("/rewards")
 async def add_reward(reward: RewardCreate):
-    created = await run_in_threadpool(reward_mgr.create_reward, reward.model_dump())
-    return {"created": True, "reward_id": created.reward_id}
+    try:
+        created = await run_in_threadpool(reward_mgr.create_reward, reward.model_dump())
+        return {"created": True, "reward_id": created.reward_id}
+    except ValueError as err:
+        raise HTTPException(status_code=400, detail=str(err))
+
+
+@app.get("/rewards/challenge/{chall_id}")
+async def get_challenge_rewards(chall_id: int):
+    rewards = await run_in_threadpool(reward_mgr.get_rewards, chall_id)
+    result = []
+    for reward in rewards:
+        result.append({
+            "reward_id": reward.reward_id,
+            "reward_name": reward.reward_name,
+            "chall_id": reward.chall_id_id,
+            "reward_type": reward.reward_type_id,
+        })
+    return {"rewards": result}
+
+
+@app.get("/rewards/user/{user_id}")
+async def get_user_rewards(user_id: int):
+    rewards = await run_in_threadpool(reward_mgr.view_user_rewards, user_id)
+    result = []
+    for reward in rewards:
+        result.append({
+            "reward_id": reward.reward_id,
+            "reward_name": reward.reward_name,
+            "chall_id": reward.chall_id_id,
+            "reward_type": reward.reward_type_id,
+        })
+    return {"rewards": result}
+
+
+@app.put("/rewards/user/{user_id}")
+async def update_user_rewards(user_id: int, updates: UserRewardUpdate):
+    payload = updates.model_dump(exclude_none=True)
+    reward_ids = payload.pop("reward_ids", None)
+    updated = await run_in_threadpool(reward_mgr.update_user_rewards, user_id, reward_ids, **payload)
+    return {"updated": updated}
