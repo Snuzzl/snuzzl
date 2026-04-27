@@ -5,6 +5,7 @@ user_id = 1
 api_root = "http://127.0.0.1:8000"
 base_url = f"{api_root}/tasks/{user_id}"
 rewards_url = f"{api_root}/rewards"
+user_rewards_url = f"{api_root}/rewards/user/{user_id}"
 
 
 class TaskItem(ft.Column):
@@ -120,71 +121,90 @@ class TaskItem(ft.Column):
         await self.on_delete(self)
 
 
-class TaskManagerApp(ft.Column):
+class RewardsPanel(ft.Column):
+    """Reward-specific UI and handlers, isolated from task management."""
     def __init__(self):
         super().__init__()
-        self.task_list = ft.Column()
         self.rewards_list = ft.Column()
-
-        # Add-task form fields.
-        self.name_field = ft.TextField(label="Task name")
-        self.desc_field = ft.TextField(label="Description (optional)")
-        self.date_field = ft.TextField(label="Date (YYYY-MM-DD)")
-        self.stime_field = ft.TextField(label="Start time (HH:MM)")
-        self.etime_field = ft.TextField(label="End time (HH:MM)", on_submit=self.add_task)
-        self.add_btn = ft.Button(content="Add Task", on_click=self.add_task)
-
-        self.add_form = ft.Column([
-            self.name_field, self.desc_field,
-            self.date_field, self.stime_field, self.etime_field,
-            self.add_btn,
-        ])
 
         self.rewards_header = ft.Text("Rewards", size=20, weight=ft.FontWeight.BOLD)
         self.reload_rewards_btn = ft.Button(content="Reload Rewards", on_click=self.load_rewards)
+        self.load_user_rewards_btn = ft.Button(content="Load My Rewards", on_click=self.load_user_rewards)
+        self.filter_challenge_field = ft.TextField(label="Filter by Challenge ID", on_submit=self.load_challenge_rewards)
+        self.filter_challenge_btn = ft.Button(content="Filter Rewards", on_click=self.load_challenge_rewards)
+
         self.reward_chall_id_field = ft.TextField(label="Challenge ID")
         self.reward_name_field = ft.TextField(label="Reward name")
         self.reward_type_field = ft.TextField(label="Reward type ID", on_submit=self.add_reward)
         self.add_reward_btn = ft.Button(content="Add Reward", on_click=self.add_reward)
+
+        self.update_reward_ids_field = ft.TextField(label="Reward IDs to update (comma-separated, optional)")
+        self.update_reward_name_field = ft.TextField(label="New reward name (optional)")
+        self.update_reward_type_field = ft.TextField(label="New reward type ID (optional)", on_submit=self.update_user_rewards)
+        self.update_user_rewards_btn = ft.Button(content="Update User Reward(s)", on_click=self.update_user_rewards)
         self.reward_feedback = ft.Text("")
+
         self.add_reward_form = ft.Column([
+            ft.Text("Add a New Reward", size=16, weight=ft.FontWeight.BOLD),
             self.reward_chall_id_field,
             self.reward_name_field,
             self.reward_type_field,
             self.add_reward_btn,
+            ft.Divider(),
+            ft.Text("Update User Reward(s)", size=16, weight=ft.FontWeight.BOLD),
+            self.update_reward_ids_field,
+            self.update_reward_name_field,
+            self.update_reward_type_field,
+            self.update_user_rewards_btn,
+            ft.Divider(),
             self.reward_feedback,
         ])
 
         self.controls = [
-            self.add_form,
-            ft.Divider(),
-            self.task_list,
-            ft.Divider(),
             self.rewards_header,
+            ft.Row([self.reload_rewards_btn, self.load_user_rewards_btn]),
+            ft.Row([self.filter_challenge_field, self.filter_challenge_btn]),
             self.add_reward_form,
-            self.reload_rewards_btn,
             self.rewards_list,
         ]
-
-    async def load_tasks(self):
-        """Fetch all tasks from the server and populate the list."""
-        async with httpx.AsyncClient() as client:
-            response = await client.get(base_url)
-            data = response.json()
-
-        self.task_list.controls.clear()
-        for task_data in data["tasks"]:
-            self.task_list.controls.append(TaskItem(task_data, self.remove_task))
-        self.update()
 
     async def load_rewards(self, e=None):
         """Fetch all rewards from the server and populate the list."""
         async with httpx.AsyncClient() as client:
             response = await client.get(rewards_url)
             data = response.json()
+        self.render_rewards(data.get("rewards", []))
 
+    async def load_user_rewards(self, e=None):
+        """Fetch rewards visible to the current user and populate the list."""
+        async with httpx.AsyncClient() as client:
+            response = await client.get(user_rewards_url)
+            data = response.json()
+        self.render_rewards(data.get("rewards", []))
+
+    async def load_challenge_rewards(self, e=None):
+        """Fetch rewards for one challenge ID."""
+        chall_id = self.filter_challenge_field.value.strip() if self.filter_challenge_field.value else ""
+        if not chall_id:
+            await self.load_rewards()
+            return
+
+        try:
+            challenge_id = int(chall_id)
+        except ValueError:
+            self.reward_feedback.value = "Challenge filter must be a number."
+            self.reward_feedback.color = ft.Colors.RED
+            self.update()
+            return
+
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"{api_root}/rewards/challenge/{challenge_id}")
+            data = response.json()
+        self.render_rewards(data.get("rewards", []))
+
+    def render_rewards(self, rewards):
+        """Render a rewards list in one place for all reward views."""
         self.rewards_list.controls.clear()
-        rewards = data.get("rewards", [])
         if not rewards:
             self.rewards_list.controls.append(ft.Text("No rewards yet."))
         else:
@@ -235,6 +255,96 @@ class TaskManagerApp(ft.Column):
             self.reward_feedback.value = f"Failed to add reward: {err}"
             self.reward_feedback.color = ft.Colors.RED
             self.update()
+
+    async def update_user_rewards(self, e):
+        reward_ids_raw = self.update_reward_ids_field.value.strip() if self.update_reward_ids_field.value else ""
+        new_name = self.update_reward_name_field.value.strip() if self.update_reward_name_field.value else ""
+        new_type = self.update_reward_type_field.value.strip() if self.update_reward_type_field.value else ""
+
+        payload = {}
+        if reward_ids_raw:
+            try:
+                reward_ids = [int(value.strip()) for value in reward_ids_raw.split(",") if value.strip()]
+                if len(reward_ids) == 1:
+                    payload["reward_ids"] = reward_ids[0]
+                else:
+                    payload["reward_ids"] = reward_ids
+            except ValueError:
+                self.reward_feedback.value = "Reward IDs must be numbers separated by commas."
+                self.reward_feedback.color = ft.Colors.RED
+                self.update()
+                return
+
+        if new_name:
+            payload["reward_name"] = new_name
+
+        if new_type:
+            try:
+                payload["reward_type"] = int(new_type)
+            except ValueError:
+                self.reward_feedback.value = "New reward type ID must be a number."
+                self.reward_feedback.color = ft.Colors.RED
+                self.update()
+                return
+
+        if not payload:
+            self.reward_feedback.value = "Enter at least one update field."
+            self.reward_feedback.color = ft.Colors.RED
+            self.update()
+            return
+
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.put(f"{api_root}/rewards/user/{user_id}", json=payload)
+                response.raise_for_status()
+                data = response.json()
+            self.reward_feedback.value = f"Updated {data.get('updated', 0)} reward(s)."
+            self.reward_feedback.color = ft.Colors.GREEN
+            await self.load_user_rewards()
+        except httpx.HTTPError as err:
+            self.reward_feedback.value = f"Failed to update user rewards: {err}"
+            self.reward_feedback.color = ft.Colors.RED
+            self.update()
+
+
+class TaskManagerApp(ft.Column):
+    def __init__(self):
+        super().__init__()
+        self.task_list = ft.Column()
+        self.rewards_panel = RewardsPanel()
+
+        # Add-task form fields.
+        self.name_field = ft.TextField(label="Task name")
+        self.desc_field = ft.TextField(label="Description (optional)")
+        self.date_field = ft.TextField(label="Date (YYYY-MM-DD)")
+        self.stime_field = ft.TextField(label="Start time (HH:MM)")
+        self.etime_field = ft.TextField(label="End time (HH:MM)", on_submit=self.add_task)
+        self.add_btn = ft.Button(content="Add Task", on_click=self.add_task)
+
+        self.add_form = ft.Column([
+            self.name_field, self.desc_field,
+            self.date_field, self.stime_field, self.etime_field,
+            self.add_btn,
+        ])
+
+        self.controls = [
+            self.add_form,
+            ft.Divider(),
+            self.task_list,
+            ft.Divider(),
+            self.rewards_panel,
+        ]
+
+    async def load_tasks(self):
+        """Fetch all tasks from the server and populate the list."""
+        async with httpx.AsyncClient() as client:
+            response = await client.get(base_url)
+            data = response.json()
+
+        self.task_list.controls.clear()
+        for task_data in data["tasks"]:
+            self.task_list.controls.append(TaskItem(task_data, self.remove_task))
+        self.update()
 
     async def add_task(self, e):
         name = self.name_field.value
@@ -288,7 +398,7 @@ async def main(page: ft.Page):
 
     # Load existing tasks on startup.
     await app.load_tasks()
-    await app.load_rewards()
+    await app.rewards_panel.load_rewards()
 
 
 ft.run(main, view=ft.AppView.WEB_BROWSER, port=8550)
