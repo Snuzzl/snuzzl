@@ -6,6 +6,7 @@ api_root = "http://127.0.0.1:8000"
 base_url = f"{api_root}/tasks/{user_id}"
 rewards_url = f"{api_root}/rewards"
 user_rewards_url = f"{api_root}/rewards/user/{user_id}"
+challenges_url = f"{api_root}/challenges/{user_id}"
 
 
 class TaskItem(ft.Column):
@@ -345,11 +346,56 @@ class RewardsPanel(ft.Column):
             self.update()
 
 
+class ChallengesPanel(ft.Column):
+    """Challenge-specific UI, isolated from task and reward management."""
+    def __init__(self):
+        super().__init__()
+        self.challenges_list = ft.Column()
+        self.challenges_header = ft.Text("My Challenges", size=20, weight=ft.FontWeight.BOLD)
+        self.load_challenges_btn = ft.Button(content="Load My Challenges", on_click=self.load_challenges)
+        self.challenges_feedback = ft.Text("")
+
+        self.controls = [
+            self.challenges_header,
+            self.load_challenges_btn,
+            self.challenges_feedback,
+            self.challenges_list,
+        ]
+
+    async def load_challenges(self, e=None):
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(challenges_url)
+                response.raise_for_status()
+                data = response.json()
+            self._render_challenges(data.get("challenges", []))
+        except httpx.HTTPError as err:
+            self.challenges_feedback.value = f"Failed to load challenges: {err}"
+            self.challenges_feedback.color = ft.Colors.RED
+            self.update()
+
+    def _render_challenges(self, challenges):
+        self.challenges_list.controls.clear()
+        if not challenges:
+            self.challenges_list.controls.append(ft.Text("No challenges found."))
+        else:
+            for ch in challenges:
+                desc = ch['chall_desc'] or "No description"
+                text = (
+                    f"[{ch['chall_id']}] {ch['chall_name']} — {desc} "
+                    f"| {ch['chall_sdate']} to {ch['chall_edate']}"
+                )
+                self.challenges_list.controls.append(ft.Text(text))
+        self.challenges_feedback.value = ""
+        self.update()
+
+
 class TaskManagerApp(ft.Column):
     def __init__(self):
         super().__init__()
         self.task_list = ft.Column()
         self.rewards_panel = RewardsPanel()
+        self.challenges_panel = ChallengesPanel()
 
         # Add-task form fields.
         self.name_field = ft.TextField(label="Task name")
@@ -369,6 +415,8 @@ class TaskManagerApp(ft.Column):
             self.add_form,
             ft.Divider(),
             self.task_list,
+            ft.Divider(),
+            self.challenges_panel,
             ft.Divider(),
             self.rewards_panel,
         ]
@@ -437,6 +485,7 @@ async def main(page: ft.Page):
     # Load existing tasks on startup.
     await app.load_tasks()
     await app.rewards_panel.load_rewards()
+    await app.challenges_panel.load_challenges()
 
 
 ft.run(main, view=ft.AppView.WEB_BROWSER, port=8550)
