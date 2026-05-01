@@ -102,7 +102,7 @@ class RewardManager:
         )
         return list(query)
 
-    def claim_reward(self, user_id, reward_id, status="claimed"):
+    def claim_reward(self, user_id, reward_id, status="Incomplete"):
         db = self._require_db()
         if db.read_record(Rewards, reward_id) is None:
             raise ValueError("reward_id does not exist")
