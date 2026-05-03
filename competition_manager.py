@@ -7,7 +7,20 @@ from datetime import *
 
 dbm = DatabaseManager()
 
+import asyncio
+
+from database_manager import DatabaseManager
+from database_models import Users
+
+from datetime import *
+
+dbm = DatabaseManager()
+
 class CompetitionManager:
+    def __init__(self, compname, comp_sdate, comp_edate):
+        self.compname = compname
+        self.comp_sdate = comp_sdate
+        self.comp_edate = comp_edate
     def __init__(self, compname, comp_sdate, comp_edate):
         self.compname = compname
         self.comp_sdate = comp_sdate
