@@ -70,15 +70,21 @@ class AccountManager:
         return Users
 
     async def login(self,username, password):
-        for i in range(1,300):
-            user = await dbm.run(lambda: dbm.read_record(dbm.models["Users"], i))
-            if user.user_password == hashlib.sha256(password.encode('utf-8')).hexdigest():
+        Users = await dbm.run(lambda: list(dbm.models["Users"].select()))
+        for u in Users:
+            if u.username == username:
+                break
+        if u.username == username:
+            if u.user_password == hashlib.sha256(password.encode('utf-8')).hexdigest():
                 self.currentuser = username
                 print(f"Hello: {username}")
-                print(user.username, user.user_email, user.user_dob)
+                print(u.username, u.user_email, u.user_dob)
                 return True
             else:
-                print("Invalid username or password")
+                    print("Incorrect password")
+                    return False
+        else:
+                print("Invalid username")
                 return False
 
     def logout(self):
