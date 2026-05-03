@@ -11,8 +11,6 @@ class RewardType(BaseModel):
     type_id = AutoField()
     type_name = CharField(30)
     type_desc = CharField(100, null=True)
-    type_value = IntegerField()
-    type_badge = BooleanField()
     class Meta:
         table_name = "rewardtype"
 
@@ -30,6 +28,13 @@ class RoutFreq(BaseModel):
     class Meta:
         table_name = "routfreq"
 
+class TaskType(BaseModel):
+    type_id = AutoField()
+    type_name = CharField(20)
+    type_desc = CharField(200)
+    class Meta:
+        table_name = "tasktype"
+
 #----- Main Tables -----#
 
 class Users(BaseModel):
@@ -38,6 +43,7 @@ class Users(BaseModel):
     user_fname = CharField(20)
     user_email = CharField(100, unique=True)
     user_dob = DateField()
+    user_password = TextField(unique=True)
     class Meta:
         table_name = "users"
 
@@ -45,14 +51,21 @@ class Tasks(BaseModel):
     task_id = AutoField()
     task_name = CharField(20)
     task_desc = CharField(250, null=True)
+    type_id = ForeignKeyField(TaskType, backref="tasks", column_name="type_id")
     class Meta:
         table_name = "tasks"
+
+class CustomTasks(BaseModel):
+    cust_id = AutoField()
+    cust_name = CharField(20)
+    cust_desc = CharField(200, null=True)
+    type_id = ForeignKeyField(TaskType, backref="customtasks", column_name="type_id")
+    class Meta:
+        table_name = "customtasks"
 
 class Routines(BaseModel):
     rout_id = AutoField()
     rout_name = CharField(20)
-    rout_desc = CharField(100) # new
-    rout_freq = ForeignKeyField(RoutFreq, backref="routines", column_name="rout_freq") # needs to be move to userrout
     class Meta:
         table_name = "routines"
 
@@ -68,6 +81,8 @@ class Metrics(BaseModel):
     met_id = AutoField()
     met_name = CharField(20)
     met_desc = CharField(250, null=True)
+    met_min = SmallIntegerField()
+    met_max = SmallIntegerField()
     met_type = ForeignKeyField(MetType, backref="metrics", column_name="met_type")
     class Meta:
         table_name = "metrics"
@@ -110,8 +125,6 @@ class Challenges(BaseModel):
     chall_id = AutoField()
     chall_name = CharField(50)
     chall_desc = CharField(200, null=True)
-    chall_stime = TimeField()
-    chall_etime = TimeField()
     class Meta:
         table_name = "challenges"
 
@@ -134,14 +147,12 @@ class Competitions(BaseModel):
 class Friends(BaseModel):
     user_id = ForeignKeyField(Users, backref="friends_user", column_name="user_id")
     friend_id = ForeignKeyField(Users, backref="friends_friend", column_name="friend_id")
-    friend_status = BooleanField()
+    friend_status = CharField(20)
 
     class Meta:
         table_name = "friends"
         primary_key = CompositeKey('user_id', 'friend_id')
-        constraints = [
-            Check('user_id < friend_id')
-        ]
+        constraints = [Check('user_id <> friend_id')]
     
 
 #----- Intersection Tables -----#
@@ -149,24 +160,28 @@ class Friends(BaseModel):
 class UserRoutine(BaseModel):
     user_id = ForeignKeyField(Users, backref="userroutine", column_name="user_id")
     rout_id = ForeignKeyField(Routines, backref="userroutine", column_name="rout_id")
+    rout_freq = ForeignKeyField(RoutFreq, backref="routines", column_name="rout_freq")
     class Meta:
         table_name = "userroutine"
         primary_key = CompositeKey('user_id','rout_id')
 
 class UserTask(BaseModel):
-    user_id = ForeignKeyField(Users, backref="usertask", column_name="user_id")
-    task_id = ForeignKeyField(Tasks, backref="usertask", column_name="task_id")
+    user_id = ForeignKeyField(Users, column_name="user_id")
+    task_id = ForeignKeyField(Tasks, column_name="task_id", null=True)
+    cust_id = ForeignKeyField(CustomTasks, column_name="cust_id", null=True)
     task_complete = BooleanField()
-    task_date = DateField() 
+    task_date = DateField()
     task_stime = TimeField()
     task_etime = TimeField()
     class Meta:
         table_name = "usertask"
-        primary_key = CompositeKey('user_id','task_id')
+        primary_key = CompositeKey('user_id', 'task_id')
 
 class UserChallenges(BaseModel):
     user_id = ForeignKeyField(Users, backref="userchallenges", column_name="user_id")
     chall_id = ForeignKeyField(Challenges, backref="userchallenges", column_name="chall_id")
+    chall_sdate = DateField()
+    chall_edate = DateField()
     class Meta:
         table_name = "userchallenges"
         primary_key = CompositeKey('user_id','chall_id')
@@ -220,11 +235,28 @@ class TaskMetric(BaseModel):
         table_name = "taskmetric"
         primary_key = CompositeKey('task_id','met_id')
 
+class RoutineTask(BaseModel):
+    routinetask_id = AutoField()
+    rout_id = ForeignKeyField(Routines, backref="routinetask", column_name="rout_id")
+    task_id = ForeignKeyField(Tasks, backref="routinetask", column_name="task_id", null=True)
+    cust_id = ForeignKeyField(CustomTasks, backref="routinetask", column_name="cust_id", null=True)
+    class Meta:
+        table_name = "routinetask"
+
+class UserRewards(BaseModel):
+    user_id = ForeignKeyField(Rewards, backref="userrewards", column_name="user_id")
+    reward_id = ForeignKeyField(Rewards, backref="userrewards", column_name="reward_id")
+    reward_status = CharField()
+    class Meta:
+        table_name = "userrewards"
+
 dbmodel_list = {"rewardType": RewardType,
         "metType": MetType,
         "routFreq": RoutFreq,
+        "TaskType": TaskType,
         "Users": Users,
         "Tasks": Tasks,
+        "CustomTasks": CustomTasks,
         "Routines": Routines,
         "Reminders": Reminders,
         "Metrics": Metrics,
@@ -245,5 +277,7 @@ dbmodel_list = {"rewardType": RewardType,
         "ExerciseLibrary": ExerciseLibrary,
         "TaskChallenges": TaskChallenges,
         "CompChallenges": CompChallenges,
-        "TaskMetric": TaskMetric
+        "TaskMetric": TaskMetric,
+        "RoutineTask": RoutineTask,
+        "UserRewards": UserRewards
         }
