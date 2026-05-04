@@ -1,7 +1,12 @@
 import flet as ft
 import re
-from app.ui.ui_account import Summary
-from app.ui.ui_metrics import Metrics
+from ui_account import Summary
+from ui_metrics import Metrics
+
+from account_manager import AccountManager
+from account_manager import login
+
+import asyncio 
 
 
 def is_valid_email(email):
@@ -25,8 +30,6 @@ class MainScreen:
         self.acc = acc
 
     def show(self):
-        from ui_rewards import RewardsChallenges
-
         self.page.clean()
         self.page.add(
             ft.Text("Welcome to Snuzzl!",
@@ -40,10 +43,6 @@ class MainScreen:
             ft.Button("View Metrics",
                       on_click=lambda e:
                       Metrics(self.page, self.acc).show()
-                      ),
-            ft.Button("View Rewards and Challenges",
-                      on_click=lambda e:
-                      RewardsChallenges(self.page, self.acc).show()
                       )
         )
 
@@ -52,9 +51,6 @@ class MainScreen:
 
     def create_account(self, e):
         CreateAccount(self.page, self.acc).show()
-
-# Screen for creating a new account
-
 
 class CreateAccount:
     def __init__(self, page, acc):
@@ -123,7 +119,7 @@ class CreateAccount:
             self.dob_field.value = self.dob_picker.value.strftime("%Y/%m/%d")
             self.page.update()
 
-    def submit(self, e):
+    async def submit(self, e):
 
         self.error_message.value = ""
 
@@ -156,11 +152,14 @@ class CreateAccount:
             self.page.update()
             return
 
-        self.acc.username = self.username_field.value
-        self.acc.fname = self.fname_field.value
-        self.acc.email = self.email_field.value
-        self.acc.password = self.password_field.value
-        self.acc.dob = self.dob_field.value
+        create_account = AccountManager(
+            email=self.email_field.value,
+            username=self.username_field.value,
+            fname=self.fname_field.value,
+            dob=self.dob_field.value,
+            password=self.password_field.value
+        )
+        await create_account.createAccount()
 
         Summary(self.page, self.acc).show()
 
@@ -202,8 +201,31 @@ class Login:
             can_reveal_password=password
         )
 
-    def submit(self, e):
-        # Placeholder for actual login logic
-        print(">>> LOGIN SUBMITTED")
+    async def submit(self, e):
+        user_login = login(
+            username=self.username_field.value,
+            password=self.password_field.value
+        )
+        result = await user_login.userLogin()
+        if result['success']:
+            self.acc.username = result['username']
+            self.acc.email = result['email']
+            self.acc.fname = result['fname']
+            self.acc.dob = result['dob']
+            print(f"✓ Login successful for {self.acc.username}")
+            Summary(self.page, self.acc).show()
+        else:
+            # Show error message
+            print(f"✗ Login failed: {result['message']}")
+            self.page.update()
 
-        Summary(self.page, self.acc).show()
+
+#test
+
+def main(page: ft.Page):
+    page.title = "Snuzzl"
+    acc = Account()
+    MainScreen(page, acc).show()
+
+if __name__ == "__main__":
+    ft.app(target=main)
