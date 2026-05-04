@@ -66,6 +66,7 @@ class CustomTasks(BaseModel):
 class Routines(BaseModel):
     rout_id = AutoField()
     rout_name = CharField(20)
+    rout_desc = CharField(100)
     class Meta:
         table_name = "routines"
 
@@ -250,6 +251,14 @@ class UserRewards(BaseModel):
     class Meta:
         table_name = "userrewards"
         primary_key = CompositeKey('user_id', 'reward_id')
+
+class RoutineTask(BaseModel):
+    routinetask_id = AutoField()
+    rout_id = ForeignKeyField(Routines, backref="routinetask", column_name="rout_id")
+    task_id = ForeignKeyField(Tasks, backref="routinetask", column_name="task_id", null=True)
+    cust_id = ForeignKeyField(CustomTasks, backref="routinetask", column_name="cust_id", null=True)
+    class Meta:
+        table_name = "routinetask"
 
 dbmodel_list = {"rewardType": RewardType,
         "metType": MetType,
