@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from contextlib import asynccontextmanager
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
@@ -6,12 +6,15 @@ from database_connection import db
 from database_manager import DatabaseManager
 from task_manager import TaskManager
 from metric_manager import MetricManager
+from reward_manager import RewardManager
+from database_models import UserChallenges, Challenges
 from social_manager import SocialManager
 
 # Shared instances so the server and task manager use one DB connection.
 db_manager = DatabaseManager()
 task_mgr = TaskManager(db=db_manager)
 metric_mgr = MetricManager(db=db_manager)
+reward_mgr = RewardManager(database_manager=db_manager)
 social_mgr = SocialManager(db=db_manager)
 
 
@@ -42,6 +45,23 @@ class TaskUpdate(BaseModel):
     task_date: str | None = None
     task_stime: str | None = None
     task_etime: str | None = None
+
+
+class RewardCreate(BaseModel):
+    chall_id: int
+    reward_name: str
+    reward_type: int
+
+
+class UserRewardUpdate(BaseModel):
+    reward_ids: list[int] | int | None = None
+    reward_name: str | None = None
+    reward_type: int | None = None
+
+
+class RewardClaim(BaseModel):
+    reward_id: int
+    status: str = "Incomplete"
 
 
 @app.get("/tasks/{user_id}")
@@ -124,15 +144,67 @@ async def update_metric(user_id: int, metric_id: int, payload: MetricUpdate):
     await run_in_threadpool(metric_mgr.update_metric_value, user_id, metric_id, payload.value)
 
 
+@app.get("/rewards")
+async def get_rewards():
+    rewards = await run_in_threadpool(reward_mgr.get_all_rewards)
+    result = []
+    for reward in rewards:
+        result.append({
+            "reward_id": reward.reward_id,
+            "chall_id": reward.chall_id_id,
+            "reward_name": reward.reward_name,
+            "reward_type": reward.reward_type_id,
+        })
+    return result
+
+
+@app.post("/rewards/user/{user_id}/claim")
+async def claim_reward(user_id: int, claim: RewardClaim):
+    try:
+        claimed = await run_in_threadpool(
+            reward_mgr.claim_reward,
+            user_id,
+            claim.reward_id,
+            claim.status,
+        )
+        return {"claimed": claimed, "reward_id": claim.reward_id}
+    except ValueError as err:
+        raise HTTPException(status_code=400, detail=str(err))
+    except Exception as err:
+        raise HTTPException(status_code=500, detail="something went wrong, please try again")
+
+
+@app.get("/challenges/{user_id}")
+async def get_user_challenges(user_id: int):
+    rows = await run_in_threadpool(
+        lambda: list(
+            UserChallenges
+            .select(UserChallenges, Challenges)
+            .join(Challenges)
+            .where(UserChallenges.user_id == user_id)
+        )
+    )
+    result = []
+    for row in rows:
+        result.append({
+            "chall_id": row.chall_id.chall_id,
+            "chall_name": row.chall_id.chall_name,
+            "chall_desc": row.chall_id.chall_desc,
+            "chall_sdate": str(row.chall_sdate),
+            "chall_edate": str(row.chall_edate),
+        })
+    return result
+
+
 ##### Social endpoints
 @app.get("/friends/{user_id}")
 async def get_user_friends(user_id: int):
     return await run_in_threadpool(social_mgr.view_friends, user_id)
 
-@app.put("friends/add/{user_id}/{username_or_id}")
+@app.put("/friends/add/{user_id}/{username_or_id}")
 async def add_friend(user_id: int, username_or_id: int):
     return await run_in_threadpool(social_mgr.add_friend, user_id, username_or_id)
 
-@app.put("friends/remove/{user_id}/{friend_id}")
+@app.put("/friends/remove/{user_id}/{friend_id}")
 async def remove_friend(user_id: int, friend_id: int):
     return await run_in_threadpool(social_mgr.remove_friend, user_id, friend_id)
