@@ -244,11 +244,12 @@ class RoutineTask(BaseModel):
         table_name = "routinetask"
 
 class UserRewards(BaseModel):
-    user_id = ForeignKeyField(Rewards, backref="userrewards", column_name="user_id")
+    user_id = ForeignKeyField(Users, backref="userrewards", column_name="user_id")
     reward_id = ForeignKeyField(Rewards, backref="userrewards", column_name="reward_id")
     reward_status = CharField()
     class Meta:
         table_name = "userrewards"
+        primary_key = CompositeKey('user_id', 'reward_id')
 
 dbmodel_list = {"rewardType": RewardType,
         "metType": MetType,
@@ -281,3 +282,6 @@ dbmodel_list = {"rewardType": RewardType,
         "RoutineTask": RoutineTask,
         "UserRewards": UserRewards
         }
+
+
+
