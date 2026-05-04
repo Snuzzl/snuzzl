@@ -229,11 +229,11 @@ class CompChallenges(BaseModel):
         primary_key = CompositeKey('comp_id','chall_id')
 
 class TaskMetric(BaseModel):
-    task_id = ForeignKeyField(Tasks, backref="taskmetric", column_name="task_id")
+    type_id = ForeignKeyField(TaskType, backref="taskmetric", column_name="type_id")
     met_id = ForeignKeyField(Metrics, backref="taskmetric", column_name="met_id")
     class Meta:
         table_name = "taskmetric"
-        primary_key = CompositeKey('task_id','met_id')
+        primary_key = CompositeKey('type_id','met_id')
 
 class RoutineTask(BaseModel):
     routinetask_id = AutoField()
