@@ -8,12 +8,14 @@ from task_manager import TaskManager
 from metric_manager import MetricManager
 from reward_manager import RewardManager
 from database_models import UserChallenges, Challenges
+from social_manager import SocialManager
 
 # Shared instances so the server and task manager use one DB connection.
 db_manager = DatabaseManager()
 task_mgr = TaskManager(db=db_manager)
 metric_mgr = MetricManager(db=db_manager)
 reward_mgr = RewardManager(database_manager=db_manager)
+social_mgr = SocialManager(db=db_manager)
 
 
 @asynccontextmanager
@@ -133,19 +135,8 @@ class MetricUpdate(BaseModel):
 
 @app.get("/metrics/{user_id}/{date}")
 async def get_metric_detail(user_id: int, date: str):
-    metrics = await run_in_threadpool(metric_mgr.read_user_metrics, user_id, date)
-    results = []
-    for metric in metrics:
-        results.append({
-            "metric_id": metric.met_id.met_id,
-            "metric_name": metric.met_id.met_name,
-            "metric_desc": metric.met_id.met_desc,
-            "metric_min": metric.met_id.met_min,
-            "metric_max": metric.met_id.met_max,
-            "metric_value": metric.metval_val,
-            "last_updated": str(metric.metval_date)
-            })
-    return results
+    return await run_in_threadpool(metric_mgr.read_user_metrics, user_id, date)
+
 
 
 @app.put("/metrics/{user_id}/{metric_id}")
@@ -198,3 +189,17 @@ async def get_user_challenges(user_id: int):
             "chall_edate": str(row.chall_edate),
         })
     return result
+
+
+##### Social endpoints
+@app.get("/friends/{user_id}")
+async def get_user_friends(user_id: int):
+    return await run_in_threadpool(social_mgr.view_friends, user_id)
+
+@app.put("/friends/add/{user_id}/{username_or_id}")
+async def add_friend(user_id: int, username_or_id: int):
+    return await run_in_threadpool(social_mgr.add_friend, user_id, username_or_id)
+
+@app.put("/friends/remove/{user_id}/{friend_id}")
+async def remove_friend(user_id: int, friend_id: int):
+    return await run_in_threadpool(social_mgr.remove_friend, user_id, friend_id)
