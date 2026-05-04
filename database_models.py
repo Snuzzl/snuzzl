@@ -82,6 +82,8 @@ class Metrics(BaseModel):
     met_id = AutoField()
     met_name = CharField(20)
     met_desc = CharField(250, null=True)
+    met_min = SmallIntegerField()
+    met_max = SmallIntegerField()
     met_type = ForeignKeyField(MetType, backref="metrics", column_name="met_type")
     class Meta:
         table_name = "metrics"
@@ -228,11 +230,27 @@ class CompChallenges(BaseModel):
         primary_key = CompositeKey('comp_id','chall_id')
 
 class TaskMetric(BaseModel):
-    task_id = ForeignKeyField(Tasks, backref="taskmetric", column_name="task_id")
+    type_id = ForeignKeyField(TaskType, backref="taskmetric", column_name="type_id")
     met_id = ForeignKeyField(Metrics, backref="taskmetric", column_name="met_id")
     class Meta:
         table_name = "taskmetric"
-        primary_key = CompositeKey('task_id','met_id')
+        primary_key = CompositeKey('type_id','met_id')
+
+class RoutineTask(BaseModel):
+    routinetask_id = AutoField()
+    rout_id = ForeignKeyField(Routines, backref="routinetask", column_name="rout_id")
+    task_id = ForeignKeyField(Tasks, backref="routinetask", column_name="task_id", null=True)
+    cust_id = ForeignKeyField(CustomTasks, backref="routinetask", column_name="cust_id", null=True)
+    class Meta:
+        table_name = "routinetask"
+
+class UserRewards(BaseModel):
+    user_id = ForeignKeyField(Users, backref="userrewards", column_name="user_id")
+    reward_id = ForeignKeyField(Rewards, backref="userrewards", column_name="reward_id")
+    reward_status = CharField()
+    class Meta:
+        table_name = "userrewards"
+        primary_key = CompositeKey('user_id', 'reward_id')
 
 class RoutineTask(BaseModel):
     routinetask_id = AutoField()
@@ -270,5 +288,9 @@ dbmodel_list = {"rewardType": RewardType,
         "TaskChallenges": TaskChallenges,
         "CompChallenges": CompChallenges,
         "TaskMetric": TaskMetric,
-        "RoutineTask": RoutineTask
+        "RoutineTask": RoutineTask,
+        "UserRewards": UserRewards
         }
+
+
+

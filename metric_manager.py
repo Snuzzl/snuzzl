@@ -1,149 +1,57 @@
-class Metric:
-    
-    def __init__(self):
-        self._name = ""
-        self._description = ""
-        self._value = None
-        self._min_value = 0
-        self._max_value = 10
-        self._reset_daily = False
-
-    @property
-    def name(self):
-        return self._name
-    
-    @property
-    def description(self):
-        return self._description
-    
-    @property
-    def value(self):
-        return self._value
-    
-    @property
-    def min_value(self):
-        return self._min_value
-    
-    @property
-    def max_value(self):
-        return self._max_value
-    
-    @property
-    def reset_daily(self):
-        return self._resets_daily
-    
-    @name.setter
-    def name(self, new_name):
-        if not new_name or not new_name.strip():
-            raise ValueError("Metric name cannot be empty")
-        if 3 > len(new_name) > 20:
-            raise ValueError("Metric name must be between 3 and 20 characters")
-        self._name = new_name
-
-    @description.setter
-    def description(self, new_description):
-        if not new_description or not new_description.strip():
-            raise ValueError("Metric description cannot be empty")
-        if len(new_description) > 250:
-            raise ValueError("Metric description must be max of 250 characters")
-        self._description = new_description
-
-    @value.setter
-    def value(self, new_value):
-        if self.min_value > new_value > self.max_value:
-            raise ValueError(f"Value must be between {self.min_value} and {self.max_value}")
-        self._value = new_value
-
-    @min_value.setter
-    def min_value(self, new_min):
-        self._min_value = new_min
-
-    @max_value.setter
-    def max_value(self, new_max):
-        self._max_value = new_max
-
-    @reset_daily.setter
-    def reset_daily(self, reset_value):
-        self._reset_daily = reset_value
-
-    def __str__(self):
-        return f"{self.name}: {self.description} | Value: {self.value}"
-
-
+from datetime import date
+   
 class MetricManager:
 
     def __init__(self, db):
-        # Dictionary of the current users metrics, syncs with db
-        # name : value 
-        self._metrics = {}
         self._db = db
-
-    @property
-    def metrics(self):
-        return self._metrics
-
-    @metrics.setter
-    def metrics(self, metrics):
-        self._metrics = metrics
-
-    def createMetric(self, name, description, min_value=0, max_value=10):
-        # Create a new type of metric
-        # Type validation
-        if type(name) != str or type(description) != str: 
-            try:
-                name = str(name)
-                description = str(description) 
-            except TypeError as err:
-                return err
-        # Insert new metric object to metric dictionary & database
-        if name in self.metrics.keys():
-            return IndexError("Create failed: Metric already exists.")
-        new_metric = Metric()
-        new_metric.name = name
-        new_metric.description = description
-        new_metric.min_value = min_value
-        new_metric.max_value = max_value
-        self.metrics[name] = new_metric
-        # Confirm metric creation
-        return f"Metric '{name}' created." 
-        
-    def readMetric(self, metric):
-        # read metric from dictionary and/or database
-        if metric in self.metrics.keys():
-            return self.metrics[metric]
-        else:
-            return KeyError("Read failed: Metric does not exist.")
-
-
-    def updateMetric(self, metric, value):
-        # Update metric in dictionary & database
-        if metric in self.metrics.keys():
-            m = self.metrics[metric]
-            if m.min_value > value > m.max_value:
-                return ValueError(f"Value must be between {m.min_value} and {m.max_value}.")
-            m.value = value
-        else:
-            return IndexError("Update failed: Metric does not exist.")
-
-    def deleteMetric(self, metric):
-        # Remove metric from dictionary & database
-        if metric in self.metrics.keys():
-            del self.metrics[metric]
-        else:
-            return KeyError("Delete failed: Metric does not exist.")
-
-    def syncMetrics(self, user_id):
-        # Update self.metrics with data from database
-        pass
+        self.metrics_table = self._db.models["Metrics"]
+        self.metric_value_table = self._db.models["MetricValue"]
     
-            
-# def metricTest():
-#     metric_manager = MetricManager()
-#     print(metric_manager.createMetric("Mood", "The mood"))
-#     print(metric_manager.readMetric("Mood"))
-#     metric_manager.updateMetric("Mood", 2)
-#     print(metric_manager.readMetric("Mood"))
-#     metric_manager.deleteMetric("Mood")
-#     print(metric_manager.readMetric("Mood"))
+    # Retrieve information for a metric
+    def read_metric(self, met_id):
+        return self._db.read_record(self.metrics_table, met_id)
 
-# metricTest()
+    # Query database for metric information and current user metric values on the given date
+    def read_user_metrics(self, user_id, date):
+        query = (
+            self.metric_value_table
+            .select(
+                self.metrics_table.met_id,
+                self.metrics_table.met_name,
+                self.metrics_table.met_desc,
+                self.metrics_table.met_min,
+                self.metrics_table.met_max,
+                self.metric_value_table.metval_date,
+                self.metric_value_table.metval_val
+            )
+            .join(self.metrics_table)
+            .where(
+                (self.metric_value_table.user_id == user_id) &
+                (self.metric_value_table.metval_date <= date)
+            )
+            .order_by(self.metrics_table.met_id, self.metric_value_table.metval_date.desc())
+            .distinct(self.metrics_table.met_id)
+        )
+
+        return [
+            {
+                "metric_id": metric.met_id.met_id,
+                "metric_name": metric.met_id.met_name,
+                "metric_desc": metric.met_id.met_desc,
+                "metric_min": metric.met_id.met_min,
+                "metric_max": metric.met_id.met_max,
+                "metric_value": metric.metval_val,
+                "last_updated": str(metric.metval_date)
+            } 
+            for metric in query
+        ]
+
+    # Update the value of a metric for a user
+    def update_metric_value(self, user_id, metric_id, value):
+        return self._db.create_record(
+            self.metric_value_table, 
+            user_id = user_id,
+            met_id = metric_id,
+            metval_date = date.today(),
+            metval_val = value
+            )
