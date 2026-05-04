@@ -86,8 +86,13 @@ class RewardsChallenges:
                     json={"reward_id": reward_id},
                 )
                 response.raise_for_status()
-            self.feedback.value = f"claimed reward {reward_id}"
-            self.feedback.color = ft.Colors.GREEN
+            payload = response.json()
+            if payload.get("claimed"):
+                self.feedback.value = f"claimed reward {reward_id}"
+                self.feedback.color = ft.Colors.GREEN
+            else:
+                self.feedback.value = f"unclaimed reward {reward_id}"
+                self.feedback.color = ft.Colors.BLUE
         except httpx.HTTPStatusError as err:
             try:
                 detail = err.response.json().get("detail", str(err))

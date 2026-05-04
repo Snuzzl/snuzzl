@@ -106,11 +106,16 @@ class RewardManager:
         db = self._require_db()
         if db.read_record(Rewards, reward_id) is None:
             raise ValueError("reward_id does not exist")
-        if UserRewards.select().where(
+
+        existing = UserRewards.get_or_none(
             (UserRewards.user_id == user_id) & (UserRewards.reward_id == reward_id)
-        ).exists():
-            raise ValueError("User has already claimed this reward")
-        return UserRewards.create(user_id=user_id, reward_id=reward_id, reward_status=status)
+        )
+        if existing is not None:
+            existing.delete_instance()
+            return False
+
+        UserRewards.create(user_id=user_id, reward_id=reward_id, reward_status=status)
+        return True
 
     def update_user_rewards(self, user_id, reward_ids=None, **fields):
         allowed = {"reward_name", "reward_type"}

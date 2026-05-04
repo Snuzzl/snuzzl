@@ -161,8 +161,13 @@ async def get_rewards():
 @app.post("/rewards/user/{user_id}/claim")
 async def claim_reward(user_id: int, claim: RewardClaim):
     try:
-        await run_in_threadpool(reward_mgr.claim_reward, user_id, claim.reward_id, claim.status)
-        return {"claimed": True, "reward_id": claim.reward_id}
+        claimed = await run_in_threadpool(
+            reward_mgr.claim_reward,
+            user_id,
+            claim.reward_id,
+            claim.status,
+        )
+        return {"claimed": claimed, "reward_id": claim.reward_id}
     except ValueError as err:
         raise HTTPException(status_code=400, detail=str(err))
     except Exception as err:
