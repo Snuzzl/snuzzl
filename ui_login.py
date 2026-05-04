@@ -25,8 +25,6 @@ class MainScreen:
         self.acc = acc
 
     def show(self):
-        from ui_rewards import RewardsChallenges
-
         self.page.clean()
         self.page.add(
             ft.Text("Welcome to Snuzzl!",
@@ -40,10 +38,6 @@ class MainScreen:
             ft.Button("View Metrics",
                       on_click=lambda e:
                       Metrics(self.page, self.acc).show()
-                      ),
-            ft.Button("View Rewards and Challenges",
-                      on_click=lambda e:
-                      RewardsChallenges(self.page, self.acc).show()
                       )
         )
 
