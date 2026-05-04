@@ -1,174 +1,151 @@
-class Reward:
-    def __init__(self):
-        self._name = ""
-        self._description = ""
-        self._points = 0
-        self._unlocked = False
-
-    @property
-    def name(self) -> str:
-        return self._name
-
-    @property
-    def description(self) -> str:
-        return self._description
-
-    @property
-    def points(self) -> int:
-        return self._points
-
-    @property
-    def unlocked(self) -> bool:
-        # is this reward unlocked for the user?
-        return self._unlocked
-
-    @name.setter
-    def name(self, new_name: str) -> None:
-        # enforce nonempty and length limit
-        if not new_name or not new_name.strip():
-            raise ValueError("Reward name cannot be empty")
-        if len(new_name) > 50:
-            raise ValueError("Reward name cannot exceed 50 characters")
-        self._name = new_name
-
-    @description.setter
-    def description(self, new_description: str) -> None:
-        # cap description length
-        if new_description and len(new_description) > 250:
-            raise ValueError("Reward description cannot exceed 250 characters")
-        self._description = new_description
-
-    @points.setter
-    def points(self, new_points: int) -> None:
-        # must be zero or positive
-        if new_points < 0:
-            raise ValueError("Reward points cannot be negative")
-        self._points = new_points
-
-    @unlocked.setter
-    def unlocked(self, new_unlocked: bool) -> None:
-        self._unlocked = new_unlocked
-
-    def unlock(self) -> None:
-        self._unlocked = True
-
-    def lock(self) -> None:
-        self._unlocked = False
+from database_models import Challenges, Rewards, RewardType, UserRewards
 
 
 class RewardManager:
-    def __init__(self) -> None:
-        self._rewards: list = []
+    def __init__(self, database_manager=None):
+        self._db = database_manager
 
-    @property
-    def rewards(self) -> list:
-        return self._rewards
+    def _require_db(self):
+        if self._db is None:
+            raise RuntimeError("Database manager is not configured")
+        return self._db
 
-    def add_reward(self, reward: Reward) -> None:
-        # only Reward instances allowed
-        if not isinstance(reward, Reward):
-            raise TypeError("Expected a reward object")
-        self._rewards.append(reward)
+    def _validate_reward_name(self, reward_name):
+        if not isinstance(reward_name, str) or not reward_name.strip():
+            raise ValueError("reward_name must be a non-empty string")
+        if len(reward_name.strip()) > 50:
+            raise ValueError("reward_name cannot exceed 50 characters")
 
-    def remove_reward(self, index: int) -> None:
-        # remove an entry by index, raises if out of range
-        if index < 0 or index >= len(self._rewards):
-            raise IndexError("Reward index out of range")
-        self._rewards.pop(index)
+    def _require_existing_challenge(self, challenge_id):
+        if not Challenges.select().where(Challenges.chall_id == challenge_id).exists():
+            raise ValueError("chall_id does not exist")
 
-    def find_reward(self, reward_name: str) -> 'Reward | None':
-        # lookup an existing reward by name (case‑insensitive)
-        for reward in self._rewards:
-            if reward.name.lower() == reward_name.lower():
-                return reward
-        return None
+    def _require_existing_reward_type(self, reward_type_id):
+        if not RewardType.select().where(RewardType.type_id == reward_type_id).exists():
+            raise ValueError("reward_type does not exist")
 
-    def reward_exists(self, reward_name: str) -> bool:
-        # check presence of a reward via name
-        return self.find_reward(reward_name) is not None
+    def _normalize_reward_ids(self, reward_ids):
+        if reward_ids is None:
+            return None
+        if isinstance(reward_ids, int):
+            return [reward_ids]
+        return [int(reward_id) for reward_id in reward_ids]
 
-    def update_reward(self, index: int, name: str = None, description: str = None, points: int = None) -> None:
-        # update individual fields for a stored reward
-        if index < 0 or index >= len(self._rewards):
-            raise IndexError("Reward index out of range")
-        reward = self._rewards[index]
-        if name is not None:
-            reward.name = name
-        if description is not None:
-            reward.description = description
-        if points is not None:
-            reward.points = points
+    def create_reward(self, data):
+        db = self._require_db()
+        if not isinstance(data, dict):
+            raise TypeError("data must be a dict")
 
-    def get_all_rewards(self) -> list:
-        # return internal reward list (mutable)
-        return self._rewards
+        required = {"chall_id", "reward_name", "reward_type"}
+        missing = required - set(data.keys())
+        if missing:
+            raise ValueError(f"Missing reward fields: {', '.join(sorted(missing))}")
 
-    def show_rewards(self) -> None:
-        # print formatted list for debugging/UI
-        if not self._rewards:
-            print("No rewards available.")
-            return
-        for index, reward in enumerate(self._rewards):
-            status = "Unlocked" if reward.unlocked else "Locked"
-            print(
-                f"[{index}] {reward.name}: {reward.description} | "
-                f"Points: {reward.points} | Status: {status}"
-            )
+        self._validate_reward_name(data["reward_name"])
+        self._require_existing_challenge(data["chall_id"])
+        self._require_existing_reward_type(data["reward_type"])
 
+        return db.create_record(
+            Rewards,
+            chall_id=data["chall_id"],
+            reward_name=data["reward_name"],
+            reward_type=data["reward_type"],
+        )
 
-# challenge item, links to a reward when completed
-class Challenge:
-    def __init__(self) -> None:
-        # initialize blank challenge
-        self._name = ""
-        self._description = ""
-        self._reward = None
-        self._completed = False
+    def get_reward(self, reward_id):
+        return self._require_db().read_record(Rewards, reward_id)
 
-    @property
-    def name(self) -> str:
-        return self._name
+    def get_rewards(self, challenge_id=None):
+        if challenge_id is None:
+            return list(Rewards.select())
+        return list(Rewards.select().where(Rewards.chall_id == challenge_id))
 
-    @property
-    def description(self) -> str:
-        return self._description
+    def get_all_rewards(self):
+        return self.get_rewards()
 
-    @property
-    def reward(self) -> 'Reward | None':
-        # attached reward object (may be None)
-        return self._reward
+    def update_reward(self, data):
+        db = self._require_db()
+        if not isinstance(data, dict):
+            raise TypeError("data must be a dict")
+        if "reward_id" not in data:
+            raise ValueError("Missing reward_id for update")
 
-    @property
-    def completed(self) -> bool:
-        # completion flag
-        return self._completed
+        allowed = {"chall_id", "reward_name", "reward_type"}
+        payload = {key: value for key, value in data.items() if key in allowed}
+        if not payload:
+            return 0
 
-    @name.setter
-    def name(self, new_name: str) -> None:
-        if not new_name or not new_name.strip():
-            raise ValueError("Challenge name cannot be empty")
-        self._name = new_name
+        if db.read_record(Rewards, data["reward_id"]) is None:
+            return 0
 
-    @description.setter
-    def description(self, new_description: str) -> None:
-        self._description = new_description
+        if "reward_name" in payload:
+            self._validate_reward_name(payload["reward_name"])
+        if "chall_id" in payload:
+            self._require_existing_challenge(payload["chall_id"])
+        if "reward_type" in payload:
+            self._require_existing_reward_type(payload["reward_type"])
 
-    @reward.setter
-    def reward(self, new_reward: 'Reward | None') -> None:
-        if new_reward is not None and not isinstance(new_reward, Reward):
-            raise TypeError("Expected a Reward object")
-        self._reward = new_reward
+        return db.update_record(Rewards, data["reward_id"], **payload)
 
-    @completed.setter
-    def completed(self, new_completed: bool) -> None:
-        # toggle completion
-        self._completed = new_completed
+    def delete_reward(self, reward_id):
+        db = self._require_db()
+        if db.read_record(Rewards, reward_id) is None:
+            return 0
+        return db.delete_record(Rewards, reward_id)
 
-    def complete(self) -> 'Reward | None':
-        # mark done and give back the reward
-        self._completed = True
-        return self._reward
+    def view_user_rewards(self, user_id):
+        query = (
+            Rewards
+            .select(Rewards)
+            .join(UserRewards, on=(Rewards.reward_id == UserRewards.reward_id))
+            .where(UserRewards.user_id == user_id)
+        )
+        return list(query)
 
-    def reset(self) -> None:
-        # undo completion
-        self._completed = False
+    def claim_reward(self, user_id, reward_id, status="Incomplete"):
+        db = self._require_db()
+        if db.read_record(Rewards, reward_id) is None:
+            raise ValueError("reward_id does not exist")
+
+        existing = UserRewards.get_or_none(
+            (UserRewards.user_id == user_id) & (UserRewards.reward_id == reward_id)
+        )
+        if existing is not None:
+            existing.delete_instance()
+            return False
+
+        UserRewards.create(user_id=user_id, reward_id=reward_id, reward_status=status)
+        return True
+
+    def update_user_rewards(self, user_id, reward_ids=None, **fields):
+        allowed = {"reward_name", "reward_type"}
+        payload = {key: value for key, value in fields.items() if key in allowed}
+        if not payload:
+            return 0
+
+        if "reward_name" in payload:
+            self._validate_reward_name(payload["reward_name"])
+        if "reward_type" in payload:
+            self._require_existing_reward_type(payload["reward_type"])
+
+        user_reward_ids = [reward.reward_id for reward in self.view_user_rewards(user_id)]
+        if not user_reward_ids:
+            return 0
+
+        normalized_reward_ids = self._normalize_reward_ids(reward_ids)
+        if normalized_reward_ids is None:
+            target_reward_ids = user_reward_ids
+        else:
+            target_reward_ids = [reward_id for reward_id in normalized_reward_ids if reward_id in user_reward_ids]
+            if len(target_reward_ids) != len(set(normalized_reward_ids)):
+                raise ValueError("One or more reward_ids are not linked to this user")
+
+        if not target_reward_ids:
+            return 0
+
+        return (
+            Rewards
+            .update(**payload)
+            .where(Rewards.reward_id.in_(target_reward_ids))
+            .execute()
+        )

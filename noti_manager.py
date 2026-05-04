@@ -10,14 +10,13 @@ class NotificationManager:
         pass
 
     def get_friend_requests(self, user_id):
-        requests = Friends.select().where(
-            (Friends.user_id == user_id) &
-            (Friends.friend_status == "Pending - Received")
+        requests = self.friends_table.select().where(
+            (self.friends_table.user_id == user_id) &
+            (self.friends_table.friend_status == "Pending - Received")
         )
-
         return [
             {
-                "from_user": req.friend_id.id,
+                "from_user": req.friend_id,
                 "status": req.friend_status
             }
             for req in requests
@@ -60,3 +59,12 @@ class NotificationManager:
             }
             for comp in deadlines
         ]
+    
+
+def test():
+    nm = NotificationManager()
+    print(nm.get_friend_requests(2))
+    #print(nm.get_competition_invites(1))
+    #print(nm.get_competition_deadlines(1))
+
+test()

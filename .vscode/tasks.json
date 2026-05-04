@@ -1,0 +1,25 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Start Server",
+            "type": "shell",
+            "command": ".venv/Scripts/python.exe -m uvicorn server:app --reload",
+            "group": "build",
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            }
+        },
+        {
+            "label": "Start Client",
+            "type": "shell",
+            "command": ".venv/Scripts/python.exe client.py",
+            "group": "build",
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            }
+        }
+    ]
+}
