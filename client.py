@@ -10,7 +10,7 @@ user_rewards_url = f"{api_root}/rewards/user/{user_id}"
 challenges_url = f"{api_root}/challenges/{user_id}"
 
 class Menu(ft.Column):
-    def __init__(self, go_to_tasks, go_to_metrics):
+    def __init__(self, go_to_tasks, go_to_metrics, go_to_rewards):
         super().__init__()
         self.horizontal_alignment = ft.CrossAxisAlignment.CENTER
 
@@ -18,7 +18,265 @@ class Menu(ft.Column):
             ft.Text("Main Menu", size=30, weight=ft.FontWeight.BOLD),
             ft.Button("Open Task Manager", on_click=go_to_tasks),
             ft.Button("Open Metric Manager", on_click=go_to_metrics),
+            ft.Button("Open Rewards and Challenges", on_click=go_to_rewards),
         ]
+
+
+class TaskItem(ft.Row):
+    def __init__(self, task_data, on_complete, on_incomplete, on_delete):
+        super().__init__(alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
+        self.task_data = task_data
+        self.on_complete = on_complete
+        self.on_incomplete = on_incomplete
+        self.on_delete = on_delete
+
+        complete = task_data["task_complete"]
+        status_text = "complete" if complete else "incomplete"
+        status_color = ft.Colors.GREEN if complete else ft.Colors.ORANGE
+
+        self.controls = [
+            ft.Column(
+                [
+                    ft.Text(task_data["task_name"], weight=ft.FontWeight.BOLD),
+                    ft.Text(task_data.get("task_desc") or "no description"),
+                    ft.Text(
+                        f"{task_data['task_date']} {task_data['task_stime']} - {task_data['task_etime']}",
+                        size=12,
+                    ),
+                    ft.Text(status_text, color=status_color, size=12),
+                ],
+                spacing=2,
+                expand=True,
+            ),
+            ft.Row(
+                [
+                    ft.Button("Complete", data=task_data["task_id"], on_click=self.on_complete),
+                    ft.Button("Incomplete", data=task_data["task_id"], on_click=self.on_incomplete),
+                    ft.Button("Delete", data=task_data["task_id"], on_click=self.on_delete),
+                ],
+                spacing=6,
+            ),
+        ]
+
+
+class TaskManagerApp(ft.Column):
+    def __init__(self):
+        super().__init__(horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+        self.task_name = ft.TextField(label="task name")
+        self.task_desc = ft.TextField(label="task description (optional)")
+        self.task_date = ft.TextField(label="date (yyyy-mm-dd)")
+        self.task_start = ft.TextField(label="start time (hh:mm:ss)")
+        self.task_end = ft.TextField(label="end time (hh:mm:ss)")
+
+        self.add_btn = ft.Button("Add Task", on_click=self.add_task)
+        self.feedback = ft.Text("loading tasks...")
+        self.task_list = ft.Column(spacing=10)
+
+        self.controls = [
+            ft.Text("Task Manager", size=25, weight=ft.FontWeight.BOLD),
+            self.task_name,
+            self.task_desc,
+            self.task_date,
+            self.task_start,
+            self.task_end,
+            self.add_btn,
+            self.feedback,
+            ft.Divider(),
+            self.task_list,
+        ]
+
+    async def load_tasks(self):
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(base_url)
+                response.raise_for_status()
+                data = response.json().get("tasks", [])
+
+            self.task_list.controls.clear()
+            if not data:
+                self.task_list.controls.append(ft.Text("no tasks yet"))
+            else:
+                for task in data:
+                    self.task_list.controls.append(
+                        TaskItem(task, self.mark_complete, self.mark_incomplete, self.delete_task)
+                    )
+            self.feedback.value = ""
+        except Exception as err:
+            self.feedback.value = f"couldn't load tasks: {err}"
+            self.feedback.color = ft.Colors.RED
+        self.update()
+
+    async def add_task(self, e):
+        name = self.task_name.value.strip() if self.task_name.value else ""
+        date_value = self.task_date.value.strip() if self.task_date.value else ""
+        start_value = self.task_start.value.strip() if self.task_start.value else ""
+        end_value = self.task_end.value.strip() if self.task_end.value else ""
+        desc = self.task_desc.value.strip() if self.task_desc.value else ""
+
+        if not name or not date_value or not start_value or not end_value:
+            self.feedback.value = "fill in task name, date, start, and end"
+            self.feedback.color = ft.Colors.RED
+            self.update()
+            return
+
+        payload = {
+            "name": name,
+            "description": desc or None,
+            "date": date_value,
+            "start_time": start_value,
+            "end_time": end_value,
+        }
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(base_url, json=payload)
+                response.raise_for_status()
+            self.feedback.value = "task added"
+            self.feedback.color = ft.Colors.GREEN
+            self.task_name.value = ""
+            self.task_desc.value = ""
+            self.task_date.value = ""
+            self.task_start.value = ""
+            self.task_end.value = ""
+            await self.load_tasks()
+        except Exception as err:
+            self.feedback.value = f"couldn't add task: {err}"
+            self.feedback.color = ft.Colors.RED
+            self.update()
+
+    async def mark_complete(self, e):
+        task_id = e.control.data
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.put(f"{base_url}/{task_id}/complete")
+                response.raise_for_status()
+            await self.load_tasks()
+        except Exception as err:
+            self.feedback.value = f"couldn't mark complete: {err}"
+            self.feedback.color = ft.Colors.RED
+            self.update()
+
+    async def mark_incomplete(self, e):
+        task_id = e.control.data
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.put(f"{base_url}/{task_id}/incomplete")
+                response.raise_for_status()
+            await self.load_tasks()
+        except Exception as err:
+            self.feedback.value = f"couldn't mark incomplete: {err}"
+            self.feedback.color = ft.Colors.RED
+            self.update()
+
+    async def delete_task(self, e):
+        task_id = e.control.data
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.delete(f"{base_url}/{task_id}")
+                response.raise_for_status()
+            await self.load_tasks()
+        except Exception as err:
+            self.feedback.value = f"couldn't delete task: {err}"
+            self.feedback.color = ft.Colors.RED
+            self.update()
+
+
+class RewardsChallengesApp(ft.Column):
+    def __init__(self):
+        super().__init__(horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+        self.rewards_feedback = ft.Text("")
+        self.rewards_list = ft.Column(spacing=8)
+        self.challenges_list = ft.Column(spacing=8)
+
+        self.controls = [
+            ft.Text("Rewards and Challenges", size=25, weight=ft.FontWeight.BOLD),
+            ft.Text("rewards", weight=ft.FontWeight.BOLD),
+            self.rewards_list,
+            ft.Divider(),
+            ft.Text("your challenges", weight=ft.FontWeight.BOLD),
+            self.challenges_list,
+            self.rewards_feedback,
+        ]
+
+    async def load_page_data(self):
+        await self.load_rewards()
+        await self.load_challenges()
+
+    async def load_rewards(self):
+        self.rewards_list.controls = [ft.Text("loading rewards...")]
+        self.update()
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(rewards_url)
+                response.raise_for_status()
+                rewards = response.json()
+
+            self.rewards_list.controls.clear()
+            if not rewards:
+                self.rewards_list.controls.append(ft.Text("no rewards yet"))
+            else:
+                for reward in rewards:
+                    reward_id = reward["reward_id"]
+                    self.rewards_list.controls.append(
+                        ft.Row(
+                            [
+                                ft.Text(
+                                    f"[{reward_id}] {reward['reward_name']} | challenge: {reward['chall_id']} | type: {reward['reward_type']}",
+                                    expand=True,
+                                ),
+                                ft.Button("Claim", data=reward_id, on_click=self.claim_reward),
+                            ],
+                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                        )
+                    )
+        except Exception as err:
+            self.rewards_list.controls = [ft.Text(f"couldn't load rewards: {err}", color=ft.Colors.RED)]
+        self.update()
+
+    async def claim_reward(self, e):
+        reward_id = e.control.data
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{api_root}/rewards/user/{user_id}/claim",
+                    json={"reward_id": reward_id},
+                )
+                response.raise_for_status()
+            self.rewards_feedback.value = f"claimed reward {reward_id}"
+            self.rewards_feedback.color = ft.Colors.GREEN
+        except httpx.HTTPStatusError as err:
+            try:
+                detail = err.response.json().get("detail", str(err))
+            except Exception:
+                detail = str(err)
+            self.rewards_feedback.value = f"couldn't claim it: {detail}"
+            self.rewards_feedback.color = ft.Colors.RED
+        except Exception as err:
+            self.rewards_feedback.value = f"something went wrong: {err}"
+            self.rewards_feedback.color = ft.Colors.RED
+        self.update()
+
+    async def load_challenges(self):
+        self.challenges_list.controls = [ft.Text("loading challenges...")]
+        self.update()
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(challenges_url)
+                response.raise_for_status()
+                challenges = response.json()
+
+            self.challenges_list.controls.clear()
+            if not challenges:
+                self.challenges_list.controls.append(ft.Text("no challenges yet"))
+            else:
+                for challenge in challenges:
+                    self.challenges_list.controls.append(
+                        ft.Text(
+                            f"[{challenge['chall_id']}] {challenge['chall_name']} | {challenge['chall_sdate']} to {challenge['chall_edate']}"
+                        )
+                    )
+        except Exception as err:
+            self.challenges_list.controls = [ft.Text(f"couldn't load challenges: {err}", color=ft.Colors.RED)]
+        self.update()
 
 
 class MetricItem(ft.Column):
@@ -222,7 +480,7 @@ async def main(page: ft.Page):
 
     async def show_menu(e=None):
         page.controls.clear()
-        page.add(Menu(show_tasks, show_metrics))
+        page.add(Menu(show_tasks, show_metrics, show_rewards))
         page.update()
     
     menu_button = ft.Button("← Back to Menu", on_click=show_menu)
@@ -242,6 +500,13 @@ async def main(page: ft.Page):
         page.update()
         # Load existing metrics when page loads
         await app.load_metrics()
+
+    async def show_rewards(e=None):
+        page.controls.clear()
+        app = RewardsChallengesApp()
+        page.add(ft.Column([menu_button, app]))
+        page.update()
+        await app.load_page_data()
 
     # Load menu on app start
     await show_menu()
