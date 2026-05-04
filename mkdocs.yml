@@ -1,0 +1,14 @@
+site_name: Snuzzl Docs
+theme:
+  name: readthedocs
+  highlightjs: true
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        # See: https://mkdocstrings.github.io/python/usage/
+        python:
+          options:
+            docstring_style: google
+markdown_extensions:
+  - admonition
