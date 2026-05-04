@@ -1,7 +1,4 @@
-import asyncio
-from concurrent.futures import ThreadPoolExecutor
 from peewee import *
-from database_manager import DatabaseManager
 
 class SocialManager:
 

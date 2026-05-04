@@ -1,7 +1,5 @@
 import asyncio
-
-from database_manager import DatabaseManager
-from database_models import Users
+from app.db.database_manager import DatabaseManager
 
 
 dbm = DatabaseManager()

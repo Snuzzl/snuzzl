@@ -1,6 +1,6 @@
 import flet as ft
-from ui_login import Account
-from ui_rewards import RewardsChallenges
+from app.ui.ui_login import Account
+from app.ui.ui_rewards import RewardsChallenges
 
 
 def main(page: ft.Page):

@@ -2,15 +2,15 @@ from fastapi import FastAPI, HTTPException
 from contextlib import asynccontextmanager
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
-from database_connection import db
-from database_manager import DatabaseManager
-from task_manager import TaskManager
-from metric_manager import MetricManager
-from reward_manager import RewardManager
-from database_models import UserChallenges, Challenges
-from social_manager import SocialManager
+from app.db.database_connection import db
+from app.db.database_manager import DatabaseManager
+from app.db.database_models import UserChallenges, Challenges
+from app.managers.task_manager import TaskManager
+from app.managers.metric_manager import MetricManager
+from app.managers.reward_manager import RewardManager
+from app.managers.social_manager import SocialManager
 
-# Shared instances so the server and task manager use one DB connection.
+# Shared instances so the server and managers use one DB connection.
 db_manager = DatabaseManager()
 task_mgr = TaskManager(db=db_manager)
 metric_mgr = MetricManager(db=db_manager)
@@ -30,6 +30,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 
+##### Task endpoints
 # Request body schemas for endpoints that need structured input.
 class CustomTaskCreate(BaseModel):
     name: str
@@ -197,6 +198,8 @@ async def complete_predefined_task(user_id: int, usertask_id: int):
 async def incomplete_predefined_task(user_id: int, usertask_id: int):
     await run_in_threadpool(task_mgr.mark_incomplete, user_id, usertask_id)
     return {"complete": False}
+
+
 ##### Metrics endpoints
 class MetricUpdate(BaseModel):
     value: int | None = None
@@ -213,6 +216,7 @@ async def update_metric(user_id: int, metric_id: int, payload: MetricUpdate):
     await run_in_threadpool(metric_mgr.update_metric_value, user_id, metric_id, payload.value)
 
 
+##### Challenges & Rewards endpoints
 @app.get("/rewards")
 async def get_rewards():
     rewards = await run_in_threadpool(reward_mgr.get_all_rewards)

@@ -1,4 +1,4 @@
-from database_models import CustomTasks, Tasks, TaskType, UserTask
+from app.db.database_models import CustomTasks, Tasks, TaskType, UserTask
 
 
 class TaskManager:

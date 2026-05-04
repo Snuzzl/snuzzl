@@ -1,5 +1,5 @@
 import flet as ft
-from ui_login import Account, MainScreen
+from app.ui.ui_login import Account, MainScreen
 
 
 def main(page: ft.Page):

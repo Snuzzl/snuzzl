@@ -1,6 +1,6 @@
 import flet as ft
-from ui_metrics import MetricManagerApp
-from ui_social import SocialManagerApp
+from app.ui.ui_metrics import MetricManagerApp
+from app.ui.ui_social import SocialManagerApp
 
 user_id = 1
 

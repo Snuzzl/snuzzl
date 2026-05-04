@@ -1,7 +1,5 @@
-import asyncio
-from concurrent.futures import ThreadPoolExecutor
 from peewee import *
-from database_models import *
+from app.db.database_models import *
 from datetime import date
 
 class NotificationManager:

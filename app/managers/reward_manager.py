@@ -1,4 +1,4 @@
-from database_models import Challenges, Rewards, RewardType, UserRewards
+from app.db.database_models import Challenges, Rewards, RewardType, UserRewards
 
 
 class RewardManager:

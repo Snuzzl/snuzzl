@@ -1,7 +1,7 @@
 import flet as ft
 import re
-from ui_account import Summary
-from ui_metrics import Metrics
+from app.ui.ui_account import Summary
+from app.ui.ui_metrics import Metrics
 
 
 def is_valid_email(email):
