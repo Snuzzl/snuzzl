@@ -202,18 +202,50 @@ async def incomplete_predefined_task(user_id: int, usertask_id: int):
 
 ##### Metrics endpoints
 class MetricUpdate(BaseModel):
+    """
+    Schema for updating a metric value.
+
+    Attributes:
+        value (int | None): The new metric value to set. If None,
+            no update will be applied.
+    """
     value: int | None = None
 
 
 @app.get("/metrics/{user_id}/{date}")
 async def get_metric_detail(user_id: int, date: str):
-    return await run_in_threadpool(metric_mgr.read_user_metrics, user_id, date)
+    """
+    Retrieve all metric data for a given user on a specific date.
 
+    Args:
+        user_id (int): The ID of the user whose metrics are requested.
+        date (str): The target date in YYYY-MM-DD format.
+
+    Returns:
+        list[dict]: A list of metric records for the specified user and date.
+    """
+    return await run_in_threadpool(metric_mgr.read_user_metrics, user_id, date)
 
 
 @app.put("/metrics/{user_id}/{metric_id}")
 async def update_metric(user_id: int, metric_id: int, payload: MetricUpdate):
-    await run_in_threadpool(metric_mgr.update_metric_value, user_id, metric_id, payload.value)
+    """
+    Update the value of a specific metric for a user.
+
+    Args:
+        user_id (int): The ID of the user owning the metric.
+        metric_id (int): The ID of the metric to update.
+        payload (MetricUpdate): Request body containing the new metric value.
+
+    Returns:
+        None: This endpoint does not return a response body.
+    """
+    await run_in_threadpool(
+        metric_mgr.update_metric_value,
+        user_id,
+        metric_id,
+        payload.value
+    )
 
 
 ##### Challenges & Rewards endpoints

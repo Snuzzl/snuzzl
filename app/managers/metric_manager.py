@@ -38,21 +38,22 @@ class MetricManager:
 
         Retrieves the most recent value for each metric associated with
         the specified user, where the metric value date is less than or
-        equal to the provided date.
+        equal to the provided date. Also provides the metadata for each
+        metric.
 
         Args:
             user_id (int): Unique identifier of the user.
             date (datetime.date): Upper bound date for metric values.
 
         Returns:
-            Query: A database query returning one row per metric, including:
-                - met_id: Metric ID
-                - met_name: Metric name
-                - met_desc: Metric description
-                - met_min: Minimum allowed value
-                - met_max: Maximum allowed value
-                - metval_date: Date of the metric value
-                - metval_val: Metric value
+            Query: A database query returning one row per metric, including:  
+                - met_id: Metric ID  
+                - met_name: Metric name  
+                - met_desc: Metric description  
+                - met_min: Minimum allowed value  
+                - met_max: Maximum allowed value  
+                - metval_date: Date of the metric value  
+                - metval_val: Metric value  
         """
 
         query = (

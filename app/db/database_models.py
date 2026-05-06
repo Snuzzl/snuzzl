@@ -1,4 +1,4 @@
-from peewee import *
+from peewee import Model, AutoField, CharField, DateField, TextField, ForeignKeyField, TimestampField, SmallIntegerField, IntegerField, BooleanField, TimeField, Check, CompositeKey
 from app.db.database_connection import db
 
 class BaseModel(Model):
