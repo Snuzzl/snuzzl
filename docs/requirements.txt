@@ -3,3 +3,4 @@ mkdocstrings
 mkdocstrings-python
 fastapi[standard]
 peewee
+flet

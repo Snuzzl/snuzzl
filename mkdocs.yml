@@ -10,5 +10,52 @@ plugins:
         python:
           options:
             docstring_style: google
+            show_root_heading: true
+            show_source: false
+            show_docstring_attributes: true
+            members_order: source
 markdown_extensions:
   - admonition
+nav:
+  - Home: index.md
+  - Overview: 
+    - Install & Run: install.md
+    - Features:
+      - Overview: features/index.md
+      - Tasks: features/tasks.md
+      - Metrics: features/metrics.md
+      - Challenges: features/challenges-rewards.md
+      - Friends: features/friends.md
+      - Competitions: features/competitions.md
+      - Supporting Features:
+        - Accounts: features/accounts.md
+        - Notifications: features/notifications.md
+    - Technical Docs:
+      - Overview: technical-docs/index.md
+      - Managers:
+        - Tasks: technical-docs/managers/tasks.md
+        - Metrics: technical-docs/managers/metrics.md
+        - Challenges & Rewards: technical-docs/managers/challenges-rewards.md
+        - Friends: technical-docs/managers/friends.md
+        - Competitions: technical-docs/managers/competitions.md
+        - Accounts: technical-docs/managers/accounts.md
+        - Notifications: technical-docs/managers/notifications.md
+      - UI:
+        - Tasks: technical-docs/ui/tasks.md
+        - Metrics: technical-docs/ui/metrics.md
+        - Challenges: technical-docs/ui/challenges.md
+        - Rewards: technical-docs/ui/rewards.md
+        - Friends: technical-docs/ui/friends.md
+        - Competitions: technical-docs/ui/competitions.md
+        - Accounts: technical-docs/ui/accounts.md
+        - Notifications: technical-docs/ui/notifications.md
+    - API: 
+      - Overview: api/index.md
+      - Tasks: api/tasks.md
+      - Metrics: api/metrics.md
+      - Challenges: api/challenges-rewards.md
+      - Friends: api/friends.md
+      - Competitions: api/competitions.md
+      - Supporting Features:
+        - Accounts: api/accounts.md
+        - Notifications: api/notifications.md
