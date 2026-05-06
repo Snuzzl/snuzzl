@@ -6,15 +6,17 @@ from datetime import date
 
 class NotificationManager:
 
-    def __init__(self):
-        pass
+    def __init__(self, user_id):
+        self.user_id = user_id
+        
 
-    def get_friend_requests(self, user_id):
+    def get_friend_requests(self):
         requests = Friends.select().where(
-            (Friends.user_id == user_id) &
+            (Friends.user_id == self.user_id) &
             (Friends.friend_status == "Pending - Received")
         )
-
+        if not requests:
+            return [False]
         return [
             {
                 "from_user": req.friend_id.id,
@@ -23,12 +25,12 @@ class NotificationManager:
             for req in requests
         ]
 
-    def get_competition_invites(self, user_id):
+    def get_competition_invites(self):
         invites = CompParticipant.select().where(
-            (CompParticipant.user_id == user_id) &
-            (CompParticipant.comp_status == "Pending")
+            (CompParticipant.user_id == self.user_id) 
         )
-
+        if not invites:
+            return [False]
         return [
             {
                 "competition_id": inv.comp_id.id,
@@ -38,7 +40,7 @@ class NotificationManager:
             for inv in invites
         ]
 
-    def get_competition_deadlines(self, user_id):
+    def get_competition_deadlines(self):
         today = date.today()
 
         deadlines = (
@@ -46,11 +48,12 @@ class NotificationManager:
             .select()
             .join(CompParticipant, on=(Competitions.comp_id == CompParticipant.comp_id))
             .where(
-                (CompParticipant.user_id == user_id) &
+                (CompParticipant.user_id == self.user_id) &
                 (Competitions.comp_edate >= today)
             )
         )
-
+        if not deadlines:
+            return [False]
         return [
             {
                 "competition_id": comp.comp_id,

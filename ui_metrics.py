@@ -1,10 +1,11 @@
 import flet as ft
-
+from metric_manager import MetricManager
 
 class Metrics:
     def __init__(self, page, acc):
         self.page = page
         self.acc = acc
+        self.metric_manager = MetricManager()
 
     def show(self):
         self.page.clean()

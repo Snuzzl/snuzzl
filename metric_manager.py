@@ -15,7 +15,7 @@ class MetricManager:
     def read_user_metrics(self, user_id, date):
         metrics = self._db.models["Metrics"]
         metric_value = self._db.models["MetricValue"]
-                 
+
         query = (
             metric_value
             .select(
@@ -49,4 +49,4 @@ class MetricManager:
 
 def test():
     mm = MetricManager(DatabaseManager())
-    print(mm.read_user_metrics(1))
+    print(mm.read_user_metrics())

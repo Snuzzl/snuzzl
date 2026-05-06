@@ -2,7 +2,7 @@ from database_models import Tasks, UserTask
 
 
 class TaskManager:
-    def __init__(self, db=None):
+    def __init__(self,db=None):
         # Database manager gets passed in from managers.py so we share one instance.
         self._db = db
 

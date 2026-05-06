@@ -5,6 +5,7 @@ from database_manager import DatabaseManager
 from database_models import Users
 import time
 
+
 dbm = DatabaseManager()
 
 class AccountManager:
@@ -51,6 +52,17 @@ class AccountManager:
             user_password=hashlib.sha256(self.password.encode('utf-8')).hexdigest()
             ))
     
+    async def userInfo(self, username):
+        Users = await dbm.run(lambda: list(dbm.models["Users"].select()))
+        for u in Users:
+                if u.username == self.username:
+                    break
+        self.fname = u.fname 
+        self.email = u.email 
+        self.password = u.password 
+        self.dob = u.dob
+        print("Summary Init:", self.username, self.fname, self.email, self.password, self.dob)
+    
     async def readAccount(self, value):
         user = await dbm.run(lambda: dbm.read_record(dbm.models["Users"], value))
         if user is None:
@@ -68,29 +80,6 @@ class AccountManager:
         for u in Users:
             print(u.user_id, u.username, u.user_fname, u.user_email, u.user_dob)
         return Users
-
-    async def login(self,username, password):
-        Users = await dbm.run(lambda: list(dbm.models["Users"].select()))
-        for u in Users:
-            if u.username == username:
-                break
-        if u.username == username:
-            if u.user_password == hashlib.sha256(password.encode('utf-8')).hexdigest():
-                self.currentuser = username
-                print(f"Hello: {username}")
-                print(u.username, u.user_email, u.user_dob)
-                return True
-            else:
-                    print("Incorrect password")
-                    return False
-        else:
-                print("Invalid username")
-                return False
-
-    def logout(self):
-        self.currentUser = "Guest"
-        return self.login()
-        #sets to guest so when logged out information can not be accessed
 
     async def deleteAccount(self, userid):
         user = await dbm.run(lambda: dbm.delete_record(dbm.models["Users"], userid))
@@ -115,6 +104,37 @@ class AccountManager:
         # Sync current user account to db, can be left for later
         pass
 
+class login():
+    def __init__(self, username, password):
+        self.username = username
+        self.password = password
+    
+    async def userLogin(self):
+        Users = await dbm.run(lambda: list(dbm.models["Users"].select()))
+        for u in Users:
+            if u.username == self.username:
+                break
+        if u.username == self.username:
+            if u.user_password == hashlib.sha256(self.password.encode('utf-8')).hexdigest():
+                self.currentuser = self.username
+                print(f"Hello: {self.username}")
+                print(u.username, u.user_email, u.user_dob)
+                # Return user data as dictionary
+                return {
+                    'success': True,
+                    'username': u.username,
+                    'email': u.user_email,
+                    'fname': u.user_fname,
+                    'dob': u.user_dob,
+                    'user_id': u.user_id
+                }
+            else:
+                    print("Incorrect password")
+                    return {'success': False, 'message': "Incorrect password"}
+        else:
+                print("Invalid username")
+                return {'success': False, 'message': "Invalid username"}
+
 if __name__ == "__main__": 
     account_manager = AccountManager("testemail1@example.com", "exampleuser", "Example", date(2000, 1, 1), "Password123!")
     asyncio.run(account_manager.readAllUsers())
@@ -123,6 +143,6 @@ if __name__ == "__main__":
     #asyncio.run(account_manager.deleteAccount())
     #asyncio.run(account_manager.updateEmail(10, "thegoblin2@example.com"))
     #asyncio.run(account_manager.readAllUsers())
-    asyncio.run(account_manager.updatePassword(10, "newpassword123"))
-    asyncio.run(account_manager.login("exampleuser", "Password123!"))
+    #asyncio.run(account_manager.updatePassword(10, "newpassword123"))
+    #asyncio.run(account_manager.login("exampleuser", "Password123!"))
 
