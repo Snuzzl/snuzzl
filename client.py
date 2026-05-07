@@ -2,8 +2,13 @@ import flet as ft
 from app.ui.ui_metrics import MetricManagerApp
 from app.ui.ui_social import SocialManagerApp
 from app.ui.ui_task_manager import SnuzzlTaskApp
+from app.ui.ui_login import Login
 
-user_id = 1
+
+class ID:
+    def __init__(self):
+        self.user_id = None
+
 
 class Menu(ft.Column):
     def __init__(self, task_menu, metric_menu, social_menu):
@@ -22,6 +27,13 @@ async def main(page: ft.Page):
     page.title = "Snuzzl App"
     page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
     page.scroll = ft.ScrollMode.ADAPTIVE
+
+    id = ID()
+
+    async def login():
+        page.controls.clear()
+        page.add(Login(id))
+        page.update()
 
     async def menu(e=None):
         page.controls.clear()
@@ -42,7 +54,7 @@ async def main(page: ft.Page):
 
     async def metric_menu(e=None):
         page.controls.clear()
-        app = MetricManagerApp(user_id)
+        app = MetricManagerApp(id.user_id)
         page.add(ft.Column([menu_button, app]))
         page.update()
         # Load existing metrics when page loads
@@ -50,14 +62,14 @@ async def main(page: ft.Page):
 
     async def social_menu(e=None):
         page.controls.clear()
-        app = SocialManagerApp(user_id)
+        app = SocialManagerApp(id.user_id)
         page.add(ft.Column([menu_button, app]))
         page.update()
         # Load friends when page loads
         await app.load_friends()
 
     # Load menu on app start
-    await menu()
+    await login()
 
 
 ft.run(main, view=ft.AppView.WEB_BROWSER, port=8550)
