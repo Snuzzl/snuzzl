@@ -1,61 +1,89 @@
 import flet as ft
+import httpx
 import re
-from ui_account import Summary
-from ui_metrics import Metrics
+import hashlib
+from client import API_ROOT, main
 
-from account_manager import AccountManager
-from account_manager import login
+from app.ui.ui_account import Summary
+
+from app.managers.account_manager import AccountManager
+from app.managers.account_manager import login
 
 import asyncio 
 
 
-def is_valid_email(email):
-    return re.match(r'^[\w\.-]+@[\w\.-]+\.\w+$', email)
-
-
-class Account:
-    def __init__(self):
-        self.username = ""
-        self.fname = ""
-        self.email = ""
-        self.password = ""
-        self.dob = ""
-
 # Main screen with options to login or create account
-
-
-class MainScreen:
-    def __init__(self, page, acc):
+class MainScreen(ft.Column):
+    def __init__(self, id, page):
+        super().__init__(horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+        # user_id for application state
+        self.id = id
         self.page = page
-        self.acc = acc
 
-    def show(self):
-        self.page.clean()
-        self.page.add(
-            ft.Text("Welcome to Snuzzl!",
-                    color='black', size=25, weight='bold'),
+        self.back_button = ft.Button("Back", on_click=self.show_menu)
+
+        self.menu_controls = [
+            ft.Text("Welcome to Snuzzl!", color='black', size=25, weight='bold'),
             ft.Row([
-                ft.Button("Login",
-                          on_click=self.login),
-                ft.Button("Create Account",
-                          on_click=self.create_account)
-            ], alignment='center', spacing=20),
-            ft.Button("View Metrics",
-                      on_click=lambda e:
-                      Metrics(self.page, self.acc).show()
-                      )
+                ft.Button("Login", on_click=self.login),
+                ft.Button("Create Account", on_click=self.create_account)
+            ], alignment='center', spacing=20)
+        ]
+
+    def show_menu(self, e=None):
+        self.controls.clear()
+        self.controls = self.menu_controls
+        self.update()
+
+    def login(self, e=None):
+        self.controls.clear()
+        self.controls = [Login(self.id, self.back_button)]
+        self.update()
+
+    def create_account(self, e=None):
+        self.controls.clear()
+        self.controls = [CreateAccount(self.id, self.back_button, self.page)]
+        self.update()
+
+class CreateAccount(ft.Column):
+    def __init__(self, back_button, page):
+        super().__init__(horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+        self.page = page
+
+        # creates each text field and assigns to a varaible
+        self.username_field = self.create_input("Username", "username")
+        self.fname_field = self.create_input("First Name", "Jane")
+        self.email_field = self.create_input("Email", "example@gmail.com")
+        self.password_field = self.create_input("Password", "Enter password", password=True)
+        self.confirm_password_field = self.create_input("Confirm Password", "Re-enter password", password=True)
+        
+        self.dob_picker = ft.DatePicker(on_change=self.update_dob)
+        self.page.overlay.append(self.dob_picker)
+
+        self.dob_field = ft.TextField(
+            label="Date of Birth",
+            hint_text="Select date of birth",
+            read_only=True,
+            width=200,
+            on_click=self.open_dob
         )
 
-    def login(self, e):
-        Login(self.page, self.acc).show()
+        self.error_message = ft.Text("", color='red')
 
-    def create_account(self, e):
-        CreateAccount(self.page, self.acc).show()
-
-class CreateAccount:
-    def __init__(self, page, acc):
-        self.page = page
-        self.acc = acc
+        self.controls = [
+            ft.Text("Enter Details", color='black', size=25, weight='bold'),
+            self.username_field,
+            self.fname_field,
+            self.email_field,
+            self.password_field,
+            self.confirm_password_field,
+            self.dob_field,
+            ft.Row([
+                back_button,
+                ft.Button("Submit", on_click=self.submit),
+            ], alignment='center', spacing=20),
+            self.error_message
+        ]
 
     def create_input(self, label_text, hint, password=False):
         return ft.TextField(
@@ -68,47 +96,8 @@ class CreateAccount:
             can_reveal_password=password
             )
 
-    def show(self):
-        self.page.clean()
-
-        # creates each text field and assigns to a varaible
-        self.username_field = self.create_input("Username", "username")
-        self.fname_field = self.create_input("First Name", "Jane")
-        self.email_field = self.create_input("Email", "example@gmail.com")
-        self.password_field = self.create_input("Password", "Enter password",
-                                                password=True)
-        self.confirm_password_field = self.create_input("Confirm Password",
-                                                        "Re-enter password",
-                                                        password=True)
-        
-        self.dob_picker = ft.DatePicker(on_change=self.update_dob)
-        self.page.overlay.append(self.dob_picker)
-
-        self.dob_field = ft.TextField(
-            label="Date of Birth",
-            hint_text="Select date of birth",
-            read_only=True,
-            width=200,
-            on_click=lambda e: self.open_dob()
-        )
-
-        self.error_message = ft.Text("", color='red')
-
-        self.page.add(
-            ft.Text("Enter Details", color='black', size=25, weight='bold'),
-            self.username_field,
-            self.fname_field,
-            self.email_field,
-            self.password_field,
-            self.confirm_password_field,
-            self.dob_field,
-            ft.Row([
-                ft.Button("Back", on_click=lambda e:
-                          MainScreen(self.page, self.acc).show()),
-                ft.Button("Submit", on_click=self.submit),
-            ], alignment='center', spacing=20),
-            self.error_message
-        )
+    def is_valid_email(email):
+        return re.match(r'^[\w\.-]+@[\w\.-]+\.\w+$', email)
 
     def open_dob(self):
         self.dob_picker.open = True
@@ -119,7 +108,12 @@ class CreateAccount:
             self.dob_field.value = self.dob_picker.value.strftime("%Y/%m/%d")
             self.page.update()
 
-    async def submit(self, e):
+    def _validate_password(self, password):
+        if not password or len(password) < 6:
+            raise ValueError("Password must be at least 6 characters long")
+        return True
+
+    async def submit(self, e=None):
 
         self.error_message.value = ""
 
@@ -146,49 +140,56 @@ class CreateAccount:
             self.page.update()
             return
 
-        if not is_valid_email(self.email_field.value):
+        if not self.is_valid_email(self.email_field.value):
             self.email_field.error_text = "Invalid email format"
             self.error_message.value = "Please enter a valid email address"
             self.page.update()
             return
 
-        create_account = AccountManager(
-            email=self.email_field.value,
-            username=self.username_field.value,
-            fname=self.fname_field.value,
-            dob=self.dob_field.value,
-            password=self.password_field.value
-        )
-        await create_account.createAccount()
+        try:
+            self._validate_password(self.password_field.value)
+        except Exception as ex:
+            self.error_message.value = f"Error: {ex}"
 
-        Summary(self.page, self.acc).show()
+        payload = {
+            "email": self.email_field.value,
+            "username": self.username_field.value,
+            "fname": self.fname_field.value,
+            "dob": self.dob_field.value,
+            "password": hashlib.sha256(self.password_field.value.encode('utf-8')).hexdigest()
+        }
+
+        try:
+            async with httpx.AsyncClient() as client:
+                result = await client.post(f"{API_ROOT}/create_account", json=payload)
+            result = result.json()
+        except Exception as ex:
+            self.error_message.value = f"Error: {ex}"
+
+        main.menu()
 
 
 # Screen for logging into an existing account
-
-
-class Login:
-    def __init__(self, page, acc):
-        self.page = page
-        self.acc = acc
-
-    def show(self):
-        self.page.clean()
+class Login(ft.Column):
+    def __init__(self, id, back_button):
+        super().__init__(horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+        # A user_id object from client.py, used to track application state
+        self.id = id
 
         self.username_field = self.create_input("Username", "username")
-        self.password_field = self.create_input("Password", "Enter password",
-                                                password=True)
+        self.password_field = self.create_input("Password", "Enter password", password=True)
+        self.error_message = ft.Text("")
 
-        self.page.add(
+        self.controls = [
             ft.Text("Login", color='black', size=25, weight='bold'),
             self.username_field,
             self.password_field,
             ft.Row([
-                ft.Button("Back", on_click=lambda e:
-                          MainScreen(self.page, self.acc).show()),
+                back_button,
                 ft.Button("Submit", on_click=self.submit),
-            ], alignment='center', spacing=20)
-        )
+            ], alignment='center', spacing=20),
+            self.error_message
+        ]
 
     def create_input(self, label_text, hint, password=False):
         return ft.TextField(
@@ -201,31 +202,28 @@ class Login:
             can_reveal_password=password
         )
 
-    async def submit(self, e):
-        user_login = login(
-            username=self.username_field.value,
-            password=self.password_field.value
-        )
-        result = await user_login.userLogin()
+    async def submit(self, e=None):
+        if self.username_field.value == "":
+            self.error_message.value = "Missing Username"
+            return
+        if self.password_field.value == "":
+            self.error_message.value = "Missing Password"
+            return
+
+        payload = {
+            "username": self.username_field.value,
+            "password": hashlib.sha256(self.password_field.value.encode('utf-8')).hexdigest()
+        }
+        try:
+            async with httpx.AsyncClient() as client:
+                result = await client.post(f"{API_ROOT}/login", json=payload)
+            result = result.json()
+        except Exception as ex:
+            self.error_message.value = f"Error: {ex}"
         if result['success']:
-            self.acc.username = result['username']
-            self.acc.email = result['email']
-            self.acc.fname = result['fname']
-            self.acc.dob = result['dob']
-            print(f"✓ Login successful for {self.acc.username}")
-            Summary(self.page, self.acc).show()
+            id.user_id = result['user_id']
+            main.menu()
         else:
             # Show error message
-            print(f"✗ Login failed: {result['message']}")
-            self.page.update()
-
-
-#test
-
-def main(page: ft.Page):
-    page.title = "Snuzzl"
-    acc = Account()
-    MainScreen(page, acc).show()
-
-if __name__ == "__main__":
-    ft.app(target=main)
+            self.error_message.value = f"Login failed: {result['message']}"
+            self.update()

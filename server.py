@@ -9,9 +9,11 @@ from app.managers.task_manager import TaskManager
 from app.managers.metric_manager import MetricManager
 from app.managers.reward_manager import RewardManager
 from app.managers.social_manager import SocialManager
+from app.managers.account_manager import AccountManager
 
 # Shared instances so the server and managers use one DB connection.
 db_manager = DatabaseManager()
+acc_mgr = AccountManager(db=db_manager)
 task_mgr = TaskManager(db=db_manager)
 metric_mgr = MetricManager(db=db_manager)
 reward_mgr = RewardManager(database_manager=db_manager)
@@ -29,6 +31,30 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
+
+##### Account endpoints
+class Login(BaseModel):
+    username: str
+    password: str
+
+class Account(BaseModel):
+    username: str 
+    password: str 
+    fname: str 
+    email: str 
+    dob: str 
+
+class AccountUpdate(BaseModel):
+    email: str | None = None
+    password: str | None = None
+
+@app.post("/login")
+async def login(payload: Login):
+    return await run_in_threadpool(acc_mgr.login, payload.username, payload.password)
+
+@app.post("/create_account")
+async def create_account(payload: Account):
+    return await run_in_threadpool(acc_mgr.create_account, payload.username, payload.password, payload.fname, payload.email, payload.dob)
 
 ##### Task endpoints
 # Request body schemas for endpoints that need structured input.
