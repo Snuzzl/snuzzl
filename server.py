@@ -7,6 +7,7 @@ from app.db.database_manager import DatabaseManager
 from app.db.database_models import UserChallenges, Challenges
 from app.managers.task_manager import TaskManager
 from app.managers.metric_manager import MetricManager
+from app.managers.challenge_manager import ChallengeManager
 from app.managers.reward_manager import RewardManager
 from app.managers.social_manager import SocialManager
 from app.managers.account_manager import AccountManager
@@ -17,6 +18,7 @@ db_manager = DatabaseManager()
 acc_mgr = AccountManager(db=db_manager)
 task_mgr = TaskManager(db=db_manager)
 metric_mgr = MetricManager(db=db_manager)
+challenge_mgr = ChallengeManager(db=db_manager)
 reward_mgr = RewardManager(database_manager=db_manager)
 social_mgr = SocialManager(db=db_manager)
 noti_mgr = NotificationManager(db=db_manager)
@@ -133,6 +135,12 @@ class UserRewardUpdate(BaseModel):
 class RewardClaim(BaseModel):
     reward_id: int
     status: str = "Incomplete"
+
+
+class ChallengeJoin(BaseModel):
+    chall_id: int
+    chall_sdate: str | None = None
+    chall_edate: str | None = None
 
 
 @app.get("/tasks/{user_id}")
@@ -296,8 +304,13 @@ async def update_metric(user_id: int, metric_id: int, payload: MetricUpdate):
 
 ##### Challenges & Rewards endpoints
 @app.get("/rewards")
-async def get_rewards():
+async def get_rewards(user_id: int | None = None):
     rewards = await run_in_threadpool(reward_mgr.get_all_rewards)
+    claimed_reward_ids = set()
+    if user_id is not None:
+        claimed_rewards = await run_in_threadpool(reward_mgr.view_user_rewards, user_id)
+        claimed_reward_ids = {r.reward_id for r in claimed_rewards}
+    
     result = []
     for reward in rewards:
         result.append({
@@ -305,6 +318,21 @@ async def get_rewards():
             "chall_id": reward.chall_id_id,
             "reward_name": reward.reward_name,
             "reward_type": reward.reward_type_id,
+            "user_claimed": reward.reward_id in claimed_reward_ids,
+        })
+    return result
+
+
+@app.get("/rewards/user/{user_id}")
+async def get_user_claimed_rewards(user_id: int):
+    rewards = await run_in_threadpool(reward_mgr.view_user_rewards, user_id)
+    result = []
+    for reward in rewards:
+        result.append({
+            "reward_id": reward.reward_id,
+            "reward_name": reward.reward_name,
+            "reward_type": reward.reward_type_id,
+            "chall_id": reward.chall_id_id,
         })
     return result
 
@@ -325,26 +353,113 @@ async def claim_reward(user_id: int, claim: RewardClaim):
         raise HTTPException(status_code=500, detail="something went wrong, please try again")
 
 
-@app.get("/challenges/{user_id}")
-async def get_user_challenges(user_id: int):
-    rows = await run_in_threadpool(
-        lambda: list(
-            UserChallenges
-            .select(UserChallenges, Challenges)
-            .join(Challenges)
-            .where(UserChallenges.user_id == user_id)
-        )
-    )
+@app.get("/challenges")
+async def get_challenges_catalog():
+    rows = await run_in_threadpool(challenge_mgr.get_all_challenges)
     result = []
     for row in rows:
+        required = await run_in_threadpool(
+            challenge_mgr.get_required_task_summary,
+            row.chall_id,
+        )
+        result.append({
+            "chall_id": row.chall_id,
+            "chall_name": row.chall_name,
+            "chall_desc": row.chall_desc,
+            "required_count": required["count"],
+            "required_summary": required["summary"],
+            "required_by_type": required["by_type"],
+            "required_task_ids": required["task_ids"],
+        })
+    return result
+
+
+@app.post("/challenges/{user_id}/join")
+async def join_user_challenge(user_id: int, payload: ChallengeJoin):
+    try:
+        row = await run_in_threadpool(
+            challenge_mgr.join_challenge,
+            user_id,
+            payload.chall_id,
+            payload.chall_sdate,
+            payload.chall_edate,
+        )
+        return {
+            "joined": True,
+            "chall_id": row.chall_id_id,
+            "chall_sdate": str(row.chall_sdate),
+            "chall_edate": str(row.chall_edate),
+        }
+    except ValueError as err:
+        raise HTTPException(status_code=400, detail=str(err))
+    except Exception:
+        raise HTTPException(status_code=500, detail="something went wrong, please try again")
+
+
+@app.delete("/challenges/{user_id}/{chall_id}")
+async def leave_user_challenge(user_id: int, chall_id: int):
+    try:
+        await run_in_threadpool(challenge_mgr.leave_challenge, user_id, chall_id)
+        return {"left": True, "chall_id": chall_id}
+    except ValueError as err:
+        raise HTTPException(status_code=400, detail=str(err))
+    except Exception:
+        raise HTTPException(status_code=500, detail="something went wrong, please try again")
+
+
+@app.get("/challenges/{user_id}")
+async def get_user_challenges(user_id: int):
+    rows = await run_in_threadpool(challenge_mgr.get_user_challenges, user_id)
+    result = []
+    for row in rows:
+        status = await run_in_threadpool(
+            challenge_mgr.get_user_challenge_status,
+            user_id,
+            row.chall_id.chall_id,
+            row.chall_edate,
+        )
+        required = await run_in_threadpool(
+            challenge_mgr.get_required_task_summary,
+            row.chall_id.chall_id,
+        )
         result.append({
             "chall_id": row.chall_id.chall_id,
             "chall_name": row.chall_id.chall_name,
             "chall_desc": row.chall_id.chall_desc,
             "chall_sdate": str(row.chall_sdate),
             "chall_edate": str(row.chall_edate),
+            "challenge_status": status,
+            "required_count": required["count"],
+            "required_summary": required["summary"],
+            "required_by_type": required["by_type"],
+            "required_task_ids": required["task_ids"],
         })
     return result
+
+
+@app.get("/challenges/{user_id}/{chall_id}/required-tasks")
+async def get_required_challenge_tasks(user_id: int, chall_id: int):
+    try:
+        tasks = await run_in_threadpool(
+            challenge_mgr.get_required_tasks_for_user,
+            user_id,
+            chall_id,
+        )
+        required = await run_in_threadpool(
+            challenge_mgr.get_required_task_summary,
+            chall_id,
+        )
+        return {
+            "chall_id": chall_id,
+            "tasks": tasks,
+            "required_count": required["count"],
+            "required_summary": required["summary"],
+            "required_by_type": required["by_type"],
+        }
+    except ValueError as err:
+        raise HTTPException(status_code=400, detail=str(err))
+    except Exception:
+        raise HTTPException(status_code=500, detail="something went wrong, please try again")
 
 
 ##### Social endpoints
