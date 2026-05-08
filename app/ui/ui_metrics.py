@@ -122,7 +122,7 @@ class MetricItem(ft.Column):
         Updates local state if successful.
 
         Args:
-            e: Flet event object.
+            e: Flet event object, not used.
         """
         metric_id = self.metric_data["metric_id"]
         value = self.value_field.value
@@ -140,16 +140,11 @@ class MetricItem(ft.Column):
             payload = {"value": value}
 
             async with httpx.AsyncClient() as client:
-                response = await client.put(
-                    f"http://127.0.0.1:8000/metrics/{self.user_id}/{metric_id}",
-                    json=payload
-                )
+                response = await client.put(f"http://127.0.0.1:8000/metrics/{self.user_id}/{metric_id}", json=payload)
 
             if response.is_success:
                 self.metric_data["metric_value"] = value
-                self.info_section.controls[1].value = (
-                    f"Last Updated: {date.today().strftime('%Y-%m-%d')}"
-                )
+                self.info_section.controls[1].value = (f"Last Updated: {date.today().strftime('%Y-%m-%d')}")
                 self.edit_section.visible = False
                 self._refresh_display()
             else:
@@ -261,9 +256,7 @@ class MetricManagerApp(ft.Column):
         """
         try:
             async with httpx.AsyncClient() as client:
-                response = await client.get(
-                    f"http://127.0.0.1:8000/metrics/{self.user_id}/{date.strftime('%Y-%m-%d')}"
-                )
+                response = await client.get(f"http://127.0.0.1:8000/metrics/{self.user_id}/{date.strftime('%Y-%m-%d')}")
                 response.raise_for_status()
                 data = response.json()
 

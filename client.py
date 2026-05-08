@@ -2,8 +2,9 @@ import flet as ft
 from app.ui.ui_metrics import MetricManagerApp
 from app.ui.ui_social import SocialManagerApp
 from app.ui.ui_task_manager import SnuzzlTaskApp
-from app.ui.ui_login import Login
+from app.ui.ui_login import MainScreen
 
+API_ROOT = "http://127.0.0.1:8000"
 
 class ID:
     def __init__(self):
@@ -32,8 +33,10 @@ async def main(page: ft.Page):
 
     async def login():
         page.controls.clear()
-        page.add(Login(id))
+        screen = MainScreen(id, page)
+        page.add(screen)
         page.update()
+        screen.show_menu()
 
     async def menu(e=None):
         page.controls.clear()
