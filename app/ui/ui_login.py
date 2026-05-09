@@ -2,7 +2,7 @@ import flet as ft
 import httpx
 import re
 import hashlib
-from config import API_ROOT
+from app.config import API_ROOT
 
 
 # Main screen with options to login or create account
@@ -17,7 +17,7 @@ class MainScreen(ft.Column):
         self.back_button = ft.Button("Back", on_click=self.show_menu)
 
         self.menu_controls = [
-            ft.Text("Welcome to Snuzzl!", color='black', size=25, weight='bold'),
+            ft.Text("Welcome to Snuzzl!", size=25, weight='bold'),
             ft.Row([
                 ft.Button("Login", on_click=self.login),
                 ft.Button("Create Account", on_click=self.create_account)
@@ -68,7 +68,7 @@ class CreateAccount(ft.Column):
         self.error_message = ft.Text("", color='red')
 
         self.controls = [
-            ft.Text("Enter Details", color='black', size=25, weight='bold'),
+            ft.Text("Enter Details", size=25, weight='bold'),
             self.username_field,
             self.fname_field,
             self.email_field,
@@ -102,7 +102,7 @@ class CreateAccount(ft.Column):
 
     def update_dob(self, e):
         if self.dob_picker.value:
-            self.dob_field.value = self.dob_picker.value.strftime("%Y/%m/%d")
+            self.dob_field.value = self.dob_picker.value.strftime("%Y-%m-%d")
             self._page.update()
 
     def _validate_password(self, password):
@@ -165,6 +165,7 @@ class CreateAccount(ft.Column):
         try:
             async with httpx.AsyncClient() as client:
                 result = await client.post(f"{API_ROOT}/create_account", json=payload)
+            result.raise_for_status()
             result = result.json()
             if result['success']:
                 # If account creation successful, assign user_id for app state and load main menu
@@ -191,7 +192,7 @@ class Login(ft.Column):
         self.error_message = ft.Text("")
 
         self.controls = [
-            ft.Text("Login", color='black', size=25, weight='bold'),
+            ft.Text("Login", size=25, weight='bold'),
             self.username_field,
             self.password_field,
             ft.Row([
@@ -227,6 +228,7 @@ class Login(ft.Column):
         try:
             async with httpx.AsyncClient() as client:
                 result = await client.post(f"{API_ROOT}/login", json=payload)
+            result.raise_for_status()
             result = result.json()
             if result['success']:
                 # If login successful, assign user_id for app state and load main menu
