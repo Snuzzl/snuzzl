@@ -4,7 +4,6 @@ from app.ui.ui_social import SocialManagerApp
 from app.ui.ui_task_manager import SnuzzlTaskApp
 from app.ui.ui_login import MainScreen
 
-API_ROOT = "http://127.0.0.1:8000"
 
 class ID:
     def __init__(self):
@@ -31,19 +30,19 @@ async def main(page: ft.Page):
 
     id = ID()
 
-    async def login():
-        page.controls.clear()
-        screen = MainScreen(id, page)
-        page.add(screen)
-        page.update()
-        screen.show_menu()
-
     async def menu(e=None):
         page.controls.clear()
         page.add(Menu(task_menu, metric_menu, social_menu))
         page.update()
-    
+        
     menu_button = ft.Button("← Back to Menu", on_click=menu)
+
+    async def login_menu():
+        page.controls.clear()
+        screen = MainScreen(id, page, on_login_success=menu)
+        page.add(screen)
+        page.update()
+        screen.show_menu()
 
     async def task_menu(e=None):
         page.controls.clear()
@@ -71,8 +70,8 @@ async def main(page: ft.Page):
         # Load friends when page loads
         await app.load_friends()
 
-    # Load menu on app start
-    await login()
+    # Load login menu on app start
+    await login_menu()
 
-
-ft.run(main, view=ft.AppView.WEB_BROWSER, port=8550)
+if __name__ == "__main__":
+    ft.run(main, view=ft.AppView.WEB_BROWSER, port=8550)

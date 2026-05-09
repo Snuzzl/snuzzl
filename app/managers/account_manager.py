@@ -1,32 +1,42 @@
 import hashlib
+from datetime import date, timedelta
 
 class AccountManager:
-    def __init__(self, db, email,username,fname,dob,password):
+    def __init__(self, db):
         self.dbm = db
         self.users_table = self.dbm.models["Users"]
-        self.username = username
-        self.email = email
-        self.fname = fname
-        self.dob = dob
-        self.password = password
 
+        # Tables for account creation and deletion
+        self.metrics_table = self.dbm.models["Metrics"]
+        self.metric_value_table = self.dbm.models["MetricValue"]
+        self.challenges_table = self.dbm.models["Challenges"]
+        self.user_challenges_table = self.dbm.models["UserChallenges"]
 
     def _validate_username(self, username):
         if not username or len(username) < 3:
             raise ValueError("Username must be at least 3 characters long")
         if not username.isalnum():
             raise ValueError("Username can only contain letters and numbers")
-        return True
+        # Check that username has at least 1 letter in it
+        for c in range(len(username) + 1):
+            if c == len(username):
+                raise ValueError("Username must contain at least one letter.")
+            try:
+                int(username[c])
+            except ValueError:
+                return True
 
     def _validate_email(self, email):
         if "@" not in email or "." not in email.split("@")[1]:
             raise ValueError("Invalid email format")
         return True
 
-    async def create_account(self, username, password, fname, email, dob):
+    def create_account(self, username, password, fname, email, dob):
+        if self.user_info(username):
+            return {'success': False, 'message': "Account creation failed: Username already exists"}
         try:
             if self._validate_username(username) and self._validate_email(email):
-                self.dbm.create_record(
+                user = self.dbm.create_record(
                     self.users_table,
                     username=username,
                     user_fname=fname,
@@ -34,76 +44,76 @@ class AccountManager:
                     user_dob=dob,
                     user_password=password
                 )
+            self.assign_default_metrics(user.user_id)
+            self.assign_default_challenges(user.user_id)
+            return {'success': True, 'user_id': user.user_id}
         except Exception as e:
-            return {'message' : f"Account creation failed: {e}"}
+            return {'success': False, 'message': f"Account creation failed: {e}"}
 
-    
-    async def userInfo(self, username):
-        Users = await self.dbm.run(lambda: list(self.dbm.models["Users"].select()))
-        for u in Users:
-                if u.username == self.username:
-                    break
-        self.fname = u.fname 
-        self.email = u.email 
-        self.password = u.password 
-        self.dob = u.dob
-        print("Summary Init:", self.username, self.fname, self.email, self.password, self.dob)
-    
-    async def readAccount(self, value):
-        user = await self.dbm.run(lambda: self.dbm.read_record(self.dbm.models["Users"], value))
-        if user is None:
-            print("This User Doesn't Exist")
+    def assign_default_metrics(self, user_id):
+        default_value = 0
+        system_metrics = self.metrics_table.select()
+        for metric in system_metrics:
+            self.dbm.create_record(
+                self.metric_value_table, 
+                user_id=user_id, 
+                met_id=metric.met_id, 
+                metval_date=date.today(),
+                metval_val=default_value
+            )
+
+    def assign_default_challenges(self, user_id):
+        system_challenges = self.challenges_table.select()
+        for challenge in system_challenges:
+            self.dbm.create_record(
+                self.user_challenges_table,
+                user_id=user_id,
+                chall_id=challenge.chall_id,
+                chall_sdate=date.today(),
+                chall_edate=(date.today() + timedelta(days=7))
+            )
+
+    def user_info(self, username):
+        try: 
+            user = self.users_table.get(self.users_table.username == username)
+        except Exception:
             return None
-        else:
-            print("Fetched User:", user.username,user.user_fname, user.user_email, user.user_dob)
-            return user
-    
-    async def readAllUsers(self):
-        Users = await self.dbm.run(lambda: list(self.dbm.models["Users"].select()))
-        if not Users:
-            print("No users found")
-            return []
-        for u in Users:
-            print(u.user_id, u.username, u.user_fname, u.user_email, u.user_dob)
-        return Users
+        return {
+            'user id': user.user_id,
+            'username': user.username,
+            'email': user.user_email,
+            'fname': user.user_fname,
+            'dob': user.user_dob,
+            'password': user.user_password
+            } 
 
-    async def deleteAccount(self, userid):
-        user = await self.dbm.run(lambda: self.dbm.delete_record(self.dbm.models["Users"], userid))
+    def delete_account(self, user_id):
+        user = self.dbm.delete_record(self.users_table, user_id)
         if user is None:
             print("This User Doesn't Exist")
         
-
-    async def updateEmail(self, userid, new_email):
-        user = await self.dbm.run(lambda: self.dbm.update_record(self.dbm.models["Users"], userid, user_email=new_email))
+    def update_email(self, user_id, new_email):
+        user = self.dbm.update_record(self.users_table, user_id, user_email=new_email)
         if user is None:
             print("This User Doesn't Exist")
             return
    
-    async def updatePassword(self, userid, new_password):
+    def update_password(self, user_id, new_password):
         new_password = hashlib.sha256(new_password.encode('utf-8')).hexdigest()
-        user = await self.dbm.run(lambda: self.dbm.update_record(self.dbm.models["Users"], userid, user_password=new_password))
+        user = self.dbm.update_record(self.users_table, user_id, user_password=new_password)
         if user is None:
             print("This User Doesn't Exist")
             return
     
     def login(self, username, password):
-        user = (
-            self.users_table
-            .select()
-            .where(self.users_table.username == username)
-            )
-
+        user = self.user_info(username)
         # If user exists, check password
         if user:
-            if user.user_password == password:
+            if user['password'] == password:
                 # Return user data as dictionary
                 return {
                     'success': True,
-                    'username': user.username,
-                    'email': user.user_email,
-                    'fname': user.user_fname,
-                    'dob': user.user_dob,
-                    'user_id': user.user_id
+                    'user_id': user['user id']
                     }
         # Return error message when if statements are false
-        return {'success': False, 'message': "Incorrect username or password"}
+        return {'success': False, 'message': "Incorrect username or password"}    
