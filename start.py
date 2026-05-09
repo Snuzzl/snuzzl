@@ -5,7 +5,7 @@ import time
 server = subprocess.Popen(["uvicorn", "server:app"])
 
 # Give the server a moment to start
-time.sleep(2)
+time.sleep(5)
 
 # Start client
 client = subprocess.Popen(["python", "client.py"])

@@ -619,20 +619,3 @@ class SnuzzlTaskApp(ft.Column):
     async def refresh_tasks(self):
         """Called after adding or assigning a task to refresh the list."""
         await self.my_tasks.load_tasks()
-
-
-async def main(page: ft.Page):
-    page.title = "Snuzzl Task Manager"
-    page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
-    page.scroll = ft.ScrollMode.ADAPTIVE
-
-    app = SnuzzlTaskApp()
-    page.add(app)
-
-    # Load the predefined catalog and user's tasks on startup.
-    catalog_tile = app.controls[4]  # CatalogBrowser is after title, divider, form, divider.
-    await catalog_tile.load_catalog()
-    await app.my_tasks.load_tasks()
-
-
-ft.run(main, view=ft.AppView.WEB_BROWSER, port=8550)

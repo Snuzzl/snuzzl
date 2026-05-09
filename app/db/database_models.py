@@ -291,6 +291,3 @@ dbmodel_list = {"rewardType": RewardType,
         "RoutineTask": RoutineTask,
         "UserRewards": UserRewards
         }
-
-
-

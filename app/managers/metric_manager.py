@@ -30,7 +30,7 @@ class MetricManager:
         Returns:
             object: Metric record corresponding to the given ID.
         """
-        metric = self._db.read_record(self._db.models["Metrics"], met_id)
+        metric = self._db.read_record(self.metrics_table, met_id)
         return metric
 
     def read_user_metrics(self, user_id, date):
