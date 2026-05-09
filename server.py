@@ -45,6 +45,8 @@ class Account(BaseModel):
     dob: str 
 
 class AccountUpdate(BaseModel):
+    user_id: int
+    username: str | None = None
     email: str | None = None
     password: str | None = None
 
@@ -55,6 +57,29 @@ async def login(payload: Login):
 @app.post("/create_account")
 async def create_account(payload: Account):
     return await run_in_threadpool(acc_mgr.create_account, payload.username, payload.password, payload.fname, payload.email, payload.dob)
+
+@app.get("/account/{user_id}")
+async def account_info(user_id: int):
+    account = await run_in_threadpool(acc_mgr.user_info, user_id=user_id)
+    if account:
+        return account
+    return {'success': False, 'message': "Failed to retrieve account information"}
+
+@app.post("/account/change_username")
+async def change_username(payload: AccountUpdate):
+    return await run_in_threadpool(acc_mgr.update_username, payload.user_id, payload.username)
+
+@app.post("/account/change_email")
+async def change_email(payload: AccountUpdate):
+    return await run_in_threadpool(acc_mgr.update_email, payload.user_id, payload.email)
+
+@app.post("/account/change_password")
+async def change_password(payload: AccountUpdate):
+    return await run_in_threadpool(acc_mgr.update_password, payload.user_id, payload.password)
+
+@app.get("/account/{user_id}/delete")
+async def delete_account(user_id: int):
+    return await run_in_threadpool(acc_mgr.delete_account, user_id)
 
 ##### Task endpoints
 # Request body schemas for endpoints that need structured input.
@@ -266,12 +291,7 @@ async def update_metric(user_id: int, metric_id: int, payload: MetricUpdate):
     Returns:
         None: This endpoint does not return a response body.
     """
-    await run_in_threadpool(
-        metric_mgr.update_metric_value,
-        user_id,
-        metric_id,
-        payload.value
-    )
+    await run_in_threadpool(metric_mgr.update_metric_value, user_id, metric_id, payload.value)
 
 
 ##### Challenges & Rewards endpoints

@@ -3,6 +3,7 @@ from app.ui.ui_metrics import MetricManagerApp
 from app.ui.ui_social import SocialManagerApp
 from app.ui.ui_task_manager import SnuzzlTaskApp
 from app.ui.ui_login import MainScreen
+from app.ui.ui_account import Summary
 
 
 class ID:
@@ -11,12 +12,13 @@ class ID:
 
 
 class Menu(ft.Column):
-    def __init__(self, task_menu, metric_menu, social_menu):
+    def __init__(self, task_menu, metric_menu, social_menu, account_menu):
         super().__init__()
         self.horizontal_alignment = ft.CrossAxisAlignment.CENTER
 
         self.controls = [
             ft.Text("Main Menu", size=30, weight=ft.FontWeight.BOLD),
+            ft.Button("Open Account Summary", on_click=account_menu),
             ft.Button("Open Task Manager", on_click=task_menu),
             ft.Button("Open Metric Manager", on_click=metric_menu),
             ft.Button("Open Social Manager", on_click=social_menu),
@@ -32,7 +34,7 @@ async def main(page: ft.Page):
 
     async def menu(e=None):
         page.controls.clear()
-        page.add(Menu(task_menu, metric_menu, social_menu))
+        page.add(Menu(task_menu, metric_menu, social_menu, account_menu))
         page.update()
         
     menu_button = ft.Button("← Back to Menu", on_click=menu)
@@ -43,6 +45,14 @@ async def main(page: ft.Page):
         page.add(screen)
         page.update()
         screen.show_menu()
+
+    async def account_menu(e=None):
+        page.controls.clear()
+        app = Summary(id, page, on_logout=login_menu)
+        page.add(ft.Column([menu_button, app]))
+        page.update()
+        # Load account info when page loads
+        await app.load_account() 
 
     async def task_menu(e=None):
         page.controls.clear()
