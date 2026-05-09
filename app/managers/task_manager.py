@@ -2,22 +2,52 @@ from app.db.database_models import CustomTasks, Tasks, TaskType, UserTask
 
 
 class TaskManager:
+    """Manages predefined tasks, custom tasks, and user task assignments."""
+
     def __init__(self, db=None):
-        # Database manager gets passed in from managers.py so we share one instance.
+        """Initializes the TaskManager.
+
+        Args:
+            db: Database manager instance used for CRUD operations.
+        """
         self._db = db
 
     def add_task(self, user, name, description=None):
-        """Create a custom task in the customTask table (no assignment)."""
+        """Creates a custom task (not yet assigned to a user).
+
+        Args:
+            user (Any): Unused placeholder for future expansion.
+            name (str): Name of the custom task.
+            description (str | None): Optional task description.
+
+        Raises:
+            ValueError: If the task name is empty.
+
+        Returns:
+            CustomTasks: The created custom task record.
+        """
         if not name or not name.strip():
             raise ValueError("Task name cannot be empty")
 
-        custom_task = self._db.create_record(
-            CustomTasks, cust_name=name, cust_desc=description
+        return self._db.create_record(
+            CustomTasks,
+            cust_name=name,
+            cust_desc=description
         )
-        return custom_task
 
     def assign_custom(self, user_id, cust_id, date, start_time, end_time):
-        """Assign an existing custom task to a user with scheduling info."""
+        """Assigns an existing custom task to a user with scheduling details.
+
+        Args:
+            user_id (int): User ID.
+            cust_id (int): Custom task ID.
+            date (date): Scheduled date.
+            start_time (time): Start time.
+            end_time (time): End time.
+
+        Returns:
+            None
+        """
         self._db.create_record(
             UserTask,
             user_id=user_id,
@@ -30,19 +60,41 @@ class TaskManager:
         )
 
     def remove_task(self, user_id, cust_id):
-        # Remove the user-task link first, then the custom task itself.
-        # This order matters because UserTask has a foreign key to CustomTasks.
+        """Removes a custom task and its user assignment.
+
+        Args:
+            user_id (int): User ID.
+            cust_id (int): Custom task ID.
+
+        Returns:
+            None
+        """
         self._db.delete_record(UserTask, (user_id, cust_id))
         self._db.delete_record(CustomTasks, cust_id)
 
     def get_tasks(self, user_id):
-        """
-        Pull all tasks (both predefined and custom) for a user.
-        Each returned dict has a 'task_type' field: 'predefined' or 'custom'.
+        """Retrieves all tasks (predefined and custom) assigned to a user.
+
+        Args:
+            user_id (int): User ID.
+
+        Returns:
+            list[dict]: List of task dictionaries containing:
+                - task_type
+                - usertask_id
+                - task_id / cust_id
+                - name
+                - description
+                - type_id
+                - type_name
+                - task_complete
+                - task_date
+                - task_stime
+                - task_etime
         """
         result = []
 
-        # --- Predefined tasks: join UserTask (where task_id is set) with Tasks ---
+        # Predefined tasks
         predefined_query = (
             UserTask
             .select(UserTask, Tasks, TaskType)
@@ -51,10 +103,10 @@ class TaskManager:
             .where(UserTask.user_id == user_id)
             .where(UserTask.task_id.is_null(False))
         )
+
         for entry in predefined_query:
             result.append({
                 "task_type": "predefined",
-                # CompositeKey is (user_id, task_id) — use task_id as the usertask_id
                 "usertask_id": entry.task_id.task_id,
                 "task_id": entry.task_id.task_id,
                 "cust_id": None,
@@ -68,7 +120,7 @@ class TaskManager:
                 "task_etime": str(entry.task_etime),
             })
 
-        # --- Custom tasks: join UserTask (where cust_id is set) with CustomTasks ---
+        # Custom tasks
         custom_query = (
             UserTask
             .select(UserTask, CustomTasks)
@@ -76,6 +128,7 @@ class TaskManager:
             .where(UserTask.user_id == user_id)
             .where(UserTask.cust_id.is_null(False))
         )
+
         for entry in custom_query:
             result.append({
                 "task_type": "custom",
@@ -95,7 +148,14 @@ class TaskManager:
         return result
 
     def show_tasks(self, user_id):
-        # Readable output for terminal use until the UI is ready.
+        """Prints a readable list of tasks for terminal debugging.
+
+        Args:
+            user_id (int): User ID.
+
+        Returns:
+            None
+        """
         tasks = self.get_tasks(user_id)
         if not tasks:
             print("No tasks found.")
@@ -104,55 +164,106 @@ class TaskManager:
         for entry in tasks:
             status = "Done" if entry["task_complete"] else "Pending"
             label = entry["type_name"] if entry["task_type"] == "predefined" else "Custom"
-            print(f"[{label}] {entry['name']}: {entry['description'] or 'No description'} | {entry['task_date']} {entry['task_stime']}-{entry['task_etime']} | {status}")
+            print(
+                f"[{label}] {entry['name']}: {entry['description'] or 'No description'} | "
+                f"{entry['task_date']} {entry['task_stime']}-{entry['task_etime']} | {status}"
+            )
 
     def mark_complete(self, user_id, cust_id):
+        """Marks a custom task as complete.
+
+        Args:
+            user_id (int): User ID.
+            cust_id (int): Custom task ID.
+
+        Returns:
+            None
+        """
         self._db.update_record(UserTask, (user_id, cust_id), task_complete=True)
 
     def mark_incomplete(self, user_id, cust_id):
+        """Marks a custom task as incomplete.
+
+        Args:
+            user_id (int): User ID.
+            cust_id (int): Custom task ID.
+
+        Returns:
+            None
+        """
         self._db.update_record(UserTask, (user_id, cust_id), task_complete=False)
 
     def update_task(self, cust_id, **fields):
-        # Update the custom task's own fields (name, description).
+        """Updates fields of a custom task.
+
+        Args:
+            cust_id (int): Custom task ID.
+            **fields: Allowed fields include:
+                - cust_name
+                - cust_desc
+
+        Returns:
+            None
+        """
         allowed = {"cust_name", "cust_desc"}
         task_fields = {field: value for field, value in fields.items() if field in allowed}
         if task_fields:
             self._db.update_record(CustomTasks, cust_id, **task_fields)
 
     def update_schedule(self, user_id, cust_id, **fields):
-        # Update the scheduling fields (date, start time, end time) on a user's task.
+        """Updates scheduling details for a user's task.
+
+        Args:
+            user_id (int): User ID.
+            cust_id (int): Custom task ID.
+            **fields: Allowed fields include:
+                - task_date
+                - task_stime
+                - task_etime
+
+        Returns:
+            None
+        """
         allowed = {"task_date", "task_stime", "task_etime"}
         schedule_fields = {field: value for field, value in fields.items() if field in allowed}
         if schedule_fields:
             self._db.update_record(UserTask, (user_id, cust_id), **schedule_fields)
 
-    #----- Predefined-task methods (read-only catalog) -----#
-
     def get_predefined_tasks(self):
-        """Return all predefined tasks grouped by category (type_name)."""
+        """Returns all predefined tasks grouped by category.
+
+        Returns:
+            dict[str, list[dict]]: Mapping of category name → list of tasks.
+        """
         query = (
             Tasks
             .select(Tasks, TaskType)
             .join(TaskType, on=(Tasks.type_id == TaskType.type_id))
             .order_by(TaskType.type_name, Tasks.task_name)
         )
-        # Group by category name.
+
         grouped = {}
         for task in query:
             cat_name = task.type_id.type_name
-            if cat_name not in grouped:
-                grouped[cat_name] = []
-            grouped[cat_name].append({
+            grouped.setdefault(cat_name, []).append({
                 "task_id": task.task_id,
                 "task_name": task.task_name,
                 "task_desc": task.task_desc,
                 "type_id": task.type_id.type_id,
                 "type_name": cat_name,
             })
+
         return grouped
 
     def get_predefined_by_category(self, type_id):
-        """Return predefined tasks filtered by category."""
+        """Returns predefined tasks filtered by category.
+
+        Args:
+            type_id (int): Task type/category ID.
+
+        Returns:
+            list[dict]: List of predefined tasks in the category.
+        """
         query = (
             Tasks
             .select(Tasks, TaskType)
@@ -160,19 +271,31 @@ class TaskManager:
             .where(Tasks.type_id == type_id)
             .order_by(Tasks.task_name)
         )
-        result = []
-        for task in query:
-            result.append({
+
+        return [
+            {
                 "task_id": task.task_id,
                 "task_name": task.task_name,
                 "task_desc": task.task_desc,
                 "type_id": task.type_id.type_id,
                 "type_name": task.type_id.type_name,
-            })
-        return result
+            }
+            for task in query
+        ]
 
     def assign_predefined(self, user_id, task_id, date, start_time, end_time):
-        """Assign a predefined task to a user with scheduling info."""
+        """Assigns a predefined task to a user.
+
+        Args:
+            user_id (int): User ID.
+            task_id (int): Predefined task ID.
+            date (date): Scheduled date.
+            start_time (time): Start time.
+            end_time (time): End time.
+
+        Returns:
+            None
+        """
         self._db.create_record(
             UserTask,
             user_id=user_id,
@@ -185,6 +308,13 @@ class TaskManager:
         )
 
     def unassign_predefined(self, user_id, task_id):
-        """Remove a user's assignment of a predefined task (does NOT delete the task itself)."""
-        # The primary key for UserTask is (user_id, task_id).
+        """Removes a predefined task assignment from a user.
+
+        Args:
+            user_id (int): User ID.
+            task_id (int): Predefined task ID.
+
+        Returns:
+            None
+        """
         self._db.delete_record(UserTask, (user_id, task_id))
