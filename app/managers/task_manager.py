@@ -69,7 +69,12 @@ class TaskManager:
         Returns:
             None
         """
-        self._db.delete_record(UserTask, (user_id, cust_id))
+        (
+            UserTask
+            .delete()
+            .where((UserTask.user_id == user_id) & (UserTask.cust_id == cust_id))
+            .execute()
+        )
         self._db.delete_record(CustomTasks, cust_id)
 
     def get_tasks(self, user_id):
@@ -179,7 +184,17 @@ class TaskManager:
         Returns:
             None
         """
-        self._db.update_record(UserTask, (user_id, cust_id), task_complete=True)
+        updated = (
+            UserTask
+            .update(task_complete=True)
+            .where(
+                (UserTask.user_id == user_id)
+                & ((UserTask.task_id == cust_id) | (UserTask.cust_id == cust_id))
+            )
+            .execute()
+        )
+        if updated == 0:
+            raise ValueError("task assignment not found")
 
     def mark_incomplete(self, user_id, cust_id):
         """Marks a custom task as incomplete.
@@ -191,7 +206,17 @@ class TaskManager:
         Returns:
             None
         """
-        self._db.update_record(UserTask, (user_id, cust_id), task_complete=False)
+        updated = (
+            UserTask
+            .update(task_complete=False)
+            .where(
+                (UserTask.user_id == user_id)
+                & ((UserTask.task_id == cust_id) | (UserTask.cust_id == cust_id))
+            )
+            .execute()
+        )
+        if updated == 0:
+            raise ValueError("task assignment not found")
 
     def update_task(self, cust_id, **fields):
         """Updates fields of a custom task.
@@ -227,7 +252,17 @@ class TaskManager:
         allowed = {"task_date", "task_stime", "task_etime"}
         schedule_fields = {field: value for field, value in fields.items() if field in allowed}
         if schedule_fields:
-            self._db.update_record(UserTask, (user_id, cust_id), **schedule_fields)
+            updated = (
+                UserTask
+                .update(**schedule_fields)
+                .where(
+                    (UserTask.user_id == user_id)
+                    & ((UserTask.task_id == cust_id) | (UserTask.cust_id == cust_id))
+                )
+                .execute()
+            )
+            if updated == 0:
+                raise ValueError("task assignment not found")
 
     def get_predefined_tasks(self):
         """Returns all predefined tasks grouped by category.
