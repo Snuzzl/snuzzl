@@ -1,5 +1,6 @@
 import flet as ft
 import httpx
+from typing import cast
 
 user_id = 1
 BASE = f"http://127.0.0.1:8000"
@@ -128,8 +129,8 @@ class AssignRow(ft.Row):
     def hide(self, e):
         self.visible = False
         self.feedback.visible = False
-        if self.parent and hasattr(self.parent, "hide_assign_row"):
-            self.parent.hide_assign_row(self)
+        if self.parent and hasattr(self.parent, "update"):
+            self.parent.update()
 
 
 class CatalogTaskRow(ft.Container):
@@ -186,7 +187,7 @@ class CatalogCategory(ft.ExpansionTile):
         super().__init__(
             title=ft.Text(type_name, weight=ft.FontWeight.BOLD),
             leading=ft.Icon(self._icon_for_category(type_name)),
-            controls=task_rows,
+            controls=cast(list[ft.Control], task_rows),
             tile_padding=ft.Padding(left=0, right=0, top=0, bottom=0),
         )
 
@@ -268,7 +269,7 @@ class MyTaskItem(ft.Container):
         self.is_complete = task_data["task_complete"]
 
         # Top row: type badge, name, status toggle.
-        self.badge = ft.Container(
+        self.type_badge = ft.Container(
             content=ft.Text(
                 task_data["type_name"],
                 size=10,
@@ -292,7 +293,6 @@ class MyTaskItem(ft.Container):
         self.status_icon_name = (
             ft.Icons.CHECK_CIRCLE if self.is_complete else ft.Icons.RADIO_BUTTON_UNCHECKED
         )
-        status_label = "Done" if self.is_complete else "Pending"
         self.status_btn = ft.Button(
             f"Mark {'incomplete' if self.is_complete else 'complete'}",
             icon=self.status_icon_name,
@@ -363,7 +363,7 @@ class MyTaskItem(ft.Container):
 
         # Assemble the row.
         header_controls = [
-            self.badge,
+            self.type_badge,
             self.name_text,
             self.status_btn,
             self.edit_btn,
@@ -404,10 +404,12 @@ class MyTaskItem(ft.Container):
             uid = self.task_data["usertask_id"]
             endpoint = f"{BASE}/tasks/{user_id}/predefined/{uid}/{'complete' if not self.is_complete else 'incomplete'}"
 
+        payload = {}
         async with httpx.AsyncClient() as client:
             try:
                 response = await client.put(endpoint)
                 response.raise_for_status()
+                payload = response.json() if response.content else {}
             except Exception:
                 return
 
@@ -417,9 +419,35 @@ class MyTaskItem(ft.Container):
             ft.Icons.CHECK_CIRCLE if self.is_complete else ft.Icons.RADIO_BUTTON_UNCHECKED
         )
         self.status_btn.icon = self.status_icon_name
-        self.status_btn.text = f"Mark {'incomplete' if self.is_complete else 'complete'}"
+        setattr(self.status_btn, "text", f"Mark {'incomplete' if self.is_complete else 'complete'}")
+
+        if self.is_complete:
+            rewards_awarded = payload.get("rewards_awarded") if isinstance(payload, dict) else None
+            if rewards_awarded:
+                reward_list = ", ".join(rewards_awarded)
+                self._show_reward_notification(f"Reward earned: {reward_list}")
+
         self.update()
         await self.on_update(self.task_data)
+
+    def _show_reward_notification(self, message):
+        try:
+            if self.page is None:
+                return
+            snack_bar = ft.SnackBar(
+                ft.Text(message),
+                bgcolor=ft.Colors.GREEN_700,
+                action="Dismiss",
+            )
+            show_snack_bar = getattr(self.page, "show_snack_bar", None)
+            open_control = getattr(self.page, "open", None)
+            if callable(show_snack_bar):
+                show_snack_bar(snack_bar)
+            elif callable(open_control):
+                open_control(snack_bar)
+            self.page.update()
+        except Exception:
+            pass
 
     async def show_edit(self, e):
         if self.is_custom:
@@ -504,7 +532,8 @@ class MyTaskItem(ft.Container):
                 return
 
         self.assign_form.visible = False
-        self.assign_btn.visible = False
+        if self.assign_btn is not None:
+            self.assign_btn.visible = False
         self.update()
         await self.on_update(self.task_data)
 
@@ -588,8 +617,10 @@ class MyTasksSection(ft.Column):
 # Main app — three-section layout
 # ----------------------------------------------------------------------------
 class SnuzzlTaskApp(ft.Column):
-    def __init__(self):
+    def __init__(self, user_id_value):
         super().__init__()
+        global user_id
+        user_id = user_id_value
         self.my_tasks = MyTasksSection()
 
         # Wrap My Tasks in its own ExpansionTile for collapsible behaviour.
