@@ -1,100 +1,143 @@
-from peewee import *
-
-
 class SocialManager:
-    """Manages friend requests, friendships, and social interactions between users."""
+    """Manage friendships, friend requests, and social interactions between users."""
 
     def __init__(self, db):
-        """Initializes the SocialManager.
+        """Initialize the social manager.
 
         Args:
-            db: The database manager instance containing Peewee models.
+            db: Database manager instance containing Peewee models.
         """
         self._db = db
         self.friends_table = self._db.models["Friends"]
-        self.user_table = self._db.models["Users"].alias()
+        self.users_table = self._db.models["Users"]
 
-    def add_friend(self, user_id, friend_id):
-        """Sends a friend request from one user to another.
+    def add_friend(self, user_id, username_or_id):
+        """Send a friend request from one user to another.
+
+        The target user can be identified either by username or by user ID.
+        If the users are already connected or a request already exists,
+        the request will not be created.
 
         Args:
-            user_id (int): ID of the user sending the request.
-            friend_id (int): ID of the user receiving the request.
+            user_id (int): ID of the user sending the friend request.
+            username_or_id (str | int): Username or user ID of the recipient.
 
         Returns:
-            dict | bool: Error message dict if invalid, otherwise True.
+            dict: Result dictionary containing:
+                - success (bool): Whether the operation succeeded.
+                - error (str, optional): Error message if the request failed.
+
+        Examples:
+            >>> manager.add_friend(1, "alice")
+            {'success': True}
+
+            >>> manager.add_friend(1, 2)
+            {'success': True}
         """
+        # Check between username or id
+        id_check = None
+        try:
+            id_check = int(username_or_id)
+        except Exception:
+            try:
+                user = self.users_table.get(self.users_table.username == username_or_id)
+                friend_id = user.user_id
+            except Exception:
+                return {"success": False, "error": "Username does not exist"}
+        if id_check:
+            try:
+                user = self.users_table.get(self.users_table.user_id == username_or_id)
+                friend_id = user.user_id
+            except Exception:
+                return {"success": False, "error": "User ID does not exist"}
+
+        # Check if freind_id is current user_id
         if user_id == friend_id:
-            return {"error": "You cannot friend yourself"}
+            return {"success": False, "error": "You cannot friend yourself"}
 
-        existing = self.friends_table.get_or_none(
-            (self.friends_table.user_id == user_id) &
-            (self.friends_table.friend_id == friend_id)
-        )
-
+        #Check if record already exists in friends table
+        existing = self.friends_table.get_or_none((self.friends_table.user_id == user_id) & (self.friends_table.friend_id == friend_id))
         if existing:
-            return {"error": "Friend request already exists or you are already friends"}
+            return {"success": False, "error": "Friend request already exists or you are already friends"}
 
-        # Create mirrored friend request entries
+        # Create mirrored friend request entries.
         self.friends_table.create(
             user_id=user_id,
             friend_id=friend_id,
-            friend_status="Pending - Sent"
+            friend_status="Pending - Sent",
         )
         self.friends_table.create(
             user_id=friend_id,
             friend_id=user_id,
-            friend_status="Pending - Received"
+            friend_status="Pending - Received",
         )
-
-        return True
+        return {"success": True}
 
     def remove_friend(self, user_id, friend_id):
-        """Removes a friendship or cancels a friend request.
+        """Remove a friendship or cancel a friend request.
+
+        This removes both relationship records between the two users.
 
         Args:
-            user_id (int): First user ID.
-            friend_id (int): Second user ID.
+            user_id (int): ID of the first user.
+            friend_id (int): ID of the second user.
 
         Returns:
-            dict: Success or error message.
+            dict: Result dictionary containing:
+                - success (bool): Whether the operation succeeded.
+                - message (str, optional): Success message.
+                - error (str, optional): Error message if no relationship exists.
+
+        Examples:
+            >>> manager.remove_friend(1, 2)
+            {'success': True, 'message': 'Friendship removed'}
         """
-        deleted = self.friends_table.delete().where(
-            ((self.friends_table.user_id == user_id) & (self.friends_table.friend_id == friend_id)) |
-            ((self.friends_table.user_id == friend_id) & (self.friends_table.friend_id == user_id))
-        ).execute()
+        deleted = (
+            self.friends_table.delete()
+            .where(
+                ((self.friends_table.user_id == user_id) & (self.friends_table.friend_id == friend_id)) | 
+                ((self.friends_table.user_id == friend_id) & (self.friends_table.friend_id == user_id))
+            ).execute()
+        )
 
         if deleted == 0:
-            return {"error": "No friendship or request found"}
+            return {"success": False, "error": "No friendship or request found",}
 
         return {"success": True, "message": "Friendship removed"}
 
     def view_friends(self, user_id):
-        """Retrieves a list of friends or pending requests for a user.
+        """Retrieve a user's friends and pending outgoing requests.
 
         Args:
-            user_id (int): User ID whose friends should be retrieved.
+            user_id (int): ID of the user whose friend list should be retrieved.
 
         Returns:
-            list[dict]: List of friends with:
-                - friend_id (int)
-                - username (str)
-                - status (str)
+            list[dict]: List of friend records. Each record contains:
+                - friend_id (int): Friend's user ID.
+                - username (str): Friend's username.
+                - status (str): Friendship status.
+
+        Examples:
+            >>> manager.view_friends(1)
+            [
+                {
+                    'friend_id': 2,
+                    'username': 'alice',
+                    'status': 'Friends'
+                }
+            ]
         """
         friends = (
-            self.user_table
+            self.users_table
             .select(
-                self.user_table.user_id,
-                self.user_table.username,
-                self.friends_table.friend_status
+                self.users_table.user_id,
+                self.users_table.username,
+                self.friends_table.friend_status,
             )
-            .join(self.friends_table, on=(self.friends_table.friend_id == self.user_table.user_id))
+            .join(self.friends_table, on=(self.friends_table.friend_id == self.users_table.user_id),)
             .where(
-                (self.friends_table.user_id == user_id) &
-                (
-                    (self.friends_table.friend_status == "Friends") |
-                    (self.friends_table.friend_status == "Pending - Sent")
-                )
+                (self.friends_table.user_id == user_id) & 
+                ((self.friends_table.friend_status == "Friends") | ( self.friends_table.friend_status== "Pending - Sent"))
             )
         )
 
@@ -102,30 +145,32 @@ class SocialManager:
             {
                 "friend_id": f.user_id,
                 "username": f.username,
-                "status": f.friend_id.friend_status
+                "status": f.friend_id.friend_status,
             }
             for f in friends
         ]
 
     def view_friend_status(self, user_id, friend_id):
-        """Checks the friendship status between two users.
+        """Retrieve the friendship status between two users.
 
         Args:
-            user_id (int): First user ID.
-            friend_id (int): Second user ID.
+            user_id (int): ID of the first user.
+            friend_id (int): ID of the second user.
 
         Returns:
-            dict: Status message such as:
+            dict: Dictionary containing the friendship status.
+
+                Possible status values:
                 - "Not Friends"
                 - "Pending - Sent"
                 - "Pending - Received"
                 - "Friends"
-        """
-        record = self.friends_table.get_or_none(
-            (self.friends_table.user_id == user_id) &
-            (self.friends_table.friend_id == friend_id)
-        )
 
+        Examples:
+            >>> manager.view_friend_status(1, 2)
+            {'status': 'Friends'}
+        """
+        record = self.friends_table.get_or_none((self.friends_table.user_id == user_id) & (self.friends_table.friend_id == friend_id))
         if not record:
             return {"status": "Not Friends"}
 

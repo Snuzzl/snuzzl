@@ -262,7 +262,6 @@ class MetricUpdate(BaseModel):
     """
     value: int | None = None
 
-
 @app.get("/metrics/{user_id}/{date}")
 async def get_metric_detail(user_id: int, date: str):
     """
@@ -276,7 +275,6 @@ async def get_metric_detail(user_id: int, date: str):
         list[dict]: A list of metric records for the specified user and date.
     """
     return await run_in_threadpool(metric_mgr.read_user_metrics, user_id, date)
-
 
 @app.put("/metrics/{user_id}/{metric_id}")
 async def update_metric(user_id: int, metric_id: int, payload: MetricUpdate):
@@ -348,14 +346,18 @@ async def get_user_challenges(user_id: int):
 
 
 ##### Social endpoints
+class FriendRequest(BaseModel):
+    user_id: int
+    username_or_id: int | str
+
 @app.get("/friends/{user_id}")
 async def get_user_friends(user_id: int):
     return await run_in_threadpool(social_mgr.view_friends, user_id)
 
-@app.put("/friends/add/{user_id}/{username_or_id}")
-async def add_friend(user_id: int, username_or_id: int):
-    return await run_in_threadpool(social_mgr.add_friend, user_id, username_or_id)
+@app.post("/friends/add")
+async def add_friend(payload: FriendRequest):
+    return await run_in_threadpool(social_mgr.add_friend, payload.user_id, payload.username_or_id)
 
-@app.put("/friends/remove/{user_id}/{friend_id}")
+@app.delete("/friends/remove/{user_id}/{friend_id}")
 async def remove_friend(user_id: int, friend_id: int):
     return await run_in_threadpool(social_mgr.remove_friend, user_id, friend_id)
