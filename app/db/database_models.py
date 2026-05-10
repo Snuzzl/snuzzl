@@ -190,6 +190,7 @@ class UserChallenges(BaseModel):
 class CompParticipant(BaseModel):
     user_id = ForeignKeyField(Users, backref="compparticipant", column_name="user_id")
     comp_id = ForeignKeyField(Competitions, backref="compparticipant", column_name="comp_id")
+    comp_status = CharField(10)
     class Meta:
         table_name = "compparticipant"
         primary_key = CompositeKey('user_id','comp_id')
@@ -235,14 +236,6 @@ class TaskMetric(BaseModel):
     class Meta:
         table_name = "taskmetric"
         primary_key = CompositeKey('type_id','met_id')
-
-class RoutineTask(BaseModel):
-    routinetask_id = AutoField()
-    rout_id = ForeignKeyField(Routines, backref="routinetask", column_name="rout_id")
-    task_id = ForeignKeyField(Tasks, backref="routinetask", column_name="task_id", null=True)
-    cust_id = ForeignKeyField(CustomTasks, backref="routinetask", column_name="cust_id", null=True)
-    class Meta:
-        table_name = "routinetask"
 
 class UserRewards(BaseModel):
     user_id = ForeignKeyField(Users, backref="userrewards", column_name="user_id")

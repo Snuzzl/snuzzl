@@ -10,6 +10,7 @@ from app.managers.metric_manager import MetricManager
 from app.managers.reward_manager import RewardManager
 from app.managers.social_manager import SocialManager
 from app.managers.account_manager import AccountManager
+from app.managers.noti_manager import NotificationManager
 
 # Shared instances so the server and managers use one DB connection.
 db_manager = DatabaseManager()
@@ -18,6 +19,7 @@ task_mgr = TaskManager(db=db_manager)
 metric_mgr = MetricManager(db=db_manager)
 reward_mgr = RewardManager(database_manager=db_manager)
 social_mgr = SocialManager(db=db_manager)
+noti_mgr = NotificationManager(db=db_manager)
 
 
 @asynccontextmanager
@@ -361,3 +363,41 @@ async def add_friend(payload: FriendRequest):
 @app.delete("/friends/remove/{user_id}/{friend_id}")
 async def remove_friend(user_id: int, friend_id: int):
     return await run_in_threadpool(social_mgr.remove_friend, user_id, friend_id)
+
+
+##### Notification endpoints
+class FriendRequest(BaseModel):
+    user_id: int
+    friend_id: int
+
+class CompInvite(BaseModel):
+    user_id: int
+    comp_id: int
+
+@app.get("/notifications/friends/{user_id}")
+async def get_friends(user_id: int):
+    return await run_in_threadpool(noti_mgr.get_friend_requests, user_id)
+
+@app.put("/notifications/accept_request")
+async def accept_request(payload: FriendRequest):
+    return await run_in_threadpool(noti_mgr.accept_request, payload.user_id, payload.friend_id)
+
+@app.post("/notifications/deny_request")
+async def deny_request(payload: FriendRequest):
+    return await run_in_threadpool(noti_mgr.deny_request, payload.user_id, payload.friend_id)
+
+@app.get("/notifications/invites/{user_id}")
+async def get_invites(user_id: int):
+    return await run_in_threadpool(noti_mgr.get_competition_invites, user_id)
+
+@app.put("/notifications/accept_invite")
+async def accept_invite(payload: CompInvite):
+    return await run_in_threadpool(noti_mgr.accept_invite, payload.user_id, payload.comp_id)
+
+@app.post("/notifications/deny_invite")
+async def deny_invite(payload: CompInvite):
+    return await run_in_threadpool(noti_mgr.deny_invite, payload.user_id, payload.comp_id)
+
+@app.get("/notifications/deadlines/{user_id}")
+async def get_deadlines(user_id: int):
+    return await run_in_threadpool(noti_mgr.get_competition_deadlines, user_id)

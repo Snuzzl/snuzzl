@@ -116,7 +116,7 @@ CREATE TABLE competitions(
     comp_sdate DATE NOT NULL,
     comp_edate DATE NOT NULL
 );
-CREATE TYPE friend_stat AS ENUM ('Friends', 'Pending - Sent', 'Pending - Received', 'Not Friends');
+CREATE TYPE friend_stat AS ENUM ('Friends', 'Pending - Sent', 'Pending - Received');
 CREATE TABLE friends(
     user_id INT NOT NULL,
     friend_id INT NOT NULL,
@@ -163,7 +163,7 @@ CREATE TABLE userChallenges(
     FOREIGN KEY (user_id) REFERENCES users(user_id),
     FOREIGN KEY (chall_id) REFERENCES challenges(chall_id)
 );
-CREATE TYPE comp_activity AS ENUM ('Not Comp', 'Pending', 'In Comp');
+CREATE TYPE comp_activity AS ENUM ('Pending', 'In Comp');
 CREATE TABLE compParticipant(
     user_id INT NOT NULL,
     comp_id INT NOT NULL,

@@ -1,6 +1,7 @@
 import flet as ft
 import httpx
 from datetime import date, timedelta
+from app.config import API_ROOT
 
 
 class MetricItem(ft.Column):
@@ -21,11 +22,11 @@ class MetricItem(ft.Column):
 
         Args:
             metric_data (dict): Metric information including name, value, bounds, etc.
-            user_id (str | int): ID of the user owning the metric.
+            user_id (str | int): ID of the user, used for editing metric value.
         """
         super().__init__(horizontal_alignment=ft.CrossAxisAlignment.CENTER)
         self.metric_data = metric_data
-        self.system_metrics = ["Productivity", "Fun", "Rest", "Emotional Health", "Physical Health"]
+        self.system_metrics = ["Productivity", "Lifestyle", "Rest", "Emotional Health", "Physical Health"]
         self.user_id = user_id
 
         self.title = ft.Text(self.metric_data["metric_name"], weight=ft.FontWeight.BOLD)
@@ -138,17 +139,16 @@ class MetricItem(ft.Column):
 
         if self.metric_data["metric_min"] <= value <= self.metric_data["metric_max"]:
             payload = {"value": value}
-
-            async with httpx.AsyncClient() as client:
-                response = await client.put(f"http://127.0.0.1:8000/metrics/{self.user_id}/{metric_id}", json=payload)
-
-            if response.is_success:
+            try:
+                async with httpx.AsyncClient() as client:
+                    response = await client.put(f"{API_ROOT}/metrics/{self.user_id}/{metric_id}", json=payload)
+                    response.raise_for_status()
                 self.metric_data["metric_value"] = value
                 self.info_section.controls[1].value = (f"Last Updated: {date.today().strftime('%Y-%m-%d')}")
                 self.edit_section.visible = False
                 self._refresh_display()
-            else:
-                self.error_message.value = "Response error"
+            except Exception as ex:
+                self.error_message.value = f"Response error: {ex}"
                 self.error_message.visible = True
                 self.update()
         else:
@@ -188,10 +188,7 @@ class MetricManagerApp(ft.Column):
             + (self.current_date + timedelta(days=7)).strftime("%Y-%m-%d")
         )
 
-        self.back_button = ft.Button(
-            content="← " + (self.current_date - timedelta(days=7)).strftime("%Y-%m-%d"),
-            on_click=self.go_back
-        )
+        self.back_button = ft.Button(content="← " + (self.current_date - timedelta(days=7)).strftime("%Y-%m-%d"), on_click=self.go_back)
         self.forward_button = ft.Button(content="→", on_click=self.go_forward, visible=False)
 
         self.controls = [
@@ -256,22 +253,16 @@ class MetricManagerApp(ft.Column):
         """
         try:
             async with httpx.AsyncClient() as client:
-                response = await client.get(f"http://127.0.0.1:8000/metrics/{self.user_id}/{date.strftime('%Y-%m-%d')}")
+                response = await client.get(f"{API_ROOT}/metrics/{self.user_id}/{date.strftime('%Y-%m-%d')}")
                 response.raise_for_status()
                 data = response.json()
-
             self.metric_list.controls.clear()
             wellbeing_score = 0
-
             for metric_data in data:
                 self.metric_list.controls.append(MetricItem(metric_data, self.user_id))
                 wellbeing_score += metric_data["metric_value"]
-
-            self.error_message.visible = False
             self.wellbeing_score.value = f"Wellbeing Score: {wellbeing_score}"
             self.update()
-
-        except Exception:
-            self.error_message.value = "Server error"
-            self.error_message.visible = True
+        except Exception as ex:
+            self.error_message.value = f"Server error: {ex}"
             self.update()
