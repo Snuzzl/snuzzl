@@ -47,9 +47,6 @@ class DatabaseManager:
 
         return table.update(**data).where(where_clause).execute()
 
-
-
-
     #----- DELETE -----#
 
     def delete_record(self, table, pk_values):

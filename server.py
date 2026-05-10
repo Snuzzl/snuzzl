@@ -10,6 +10,7 @@ from app.managers.metric_manager import MetricManager
 from app.managers.reward_manager import RewardManager
 from app.managers.social_manager import SocialManager
 from app.managers.account_manager import AccountManager
+from app.managers.noti_manager import NotificationManager
 
 # Shared instances so the server and managers use one DB connection.
 db_manager = DatabaseManager()
@@ -18,6 +19,7 @@ task_mgr = TaskManager(db=db_manager)
 metric_mgr = MetricManager(db=db_manager)
 reward_mgr = RewardManager(database_manager=db_manager)
 social_mgr = SocialManager(db=db_manager)
+noti_mgr = NotificationManager(db=db_manager)
 
 
 @asynccontextmanager
@@ -262,7 +264,6 @@ class MetricUpdate(BaseModel):
     """
     value: int | None = None
 
-
 @app.get("/metrics/{user_id}/{date}")
 async def get_metric_detail(user_id: int, date: str):
     """
@@ -276,7 +277,6 @@ async def get_metric_detail(user_id: int, date: str):
         list[dict]: A list of metric records for the specified user and date.
     """
     return await run_in_threadpool(metric_mgr.read_user_metrics, user_id, date)
-
 
 @app.put("/metrics/{user_id}/{metric_id}")
 async def update_metric(user_id: int, metric_id: int, payload: MetricUpdate):
@@ -348,14 +348,56 @@ async def get_user_challenges(user_id: int):
 
 
 ##### Social endpoints
+class FriendRequest(BaseModel):
+    user_id: int
+    username_or_id: int | str
+
 @app.get("/friends/{user_id}")
 async def get_user_friends(user_id: int):
     return await run_in_threadpool(social_mgr.view_friends, user_id)
 
-@app.put("/friends/add/{user_id}/{username_or_id}")
-async def add_friend(user_id: int, username_or_id: int):
-    return await run_in_threadpool(social_mgr.add_friend, user_id, username_or_id)
+@app.post("/friends/add")
+async def add_friend(payload: FriendRequest):
+    return await run_in_threadpool(social_mgr.add_friend, payload.user_id, payload.username_or_id)
 
-@app.put("/friends/remove/{user_id}/{friend_id}")
+@app.delete("/friends/remove/{user_id}/{friend_id}")
 async def remove_friend(user_id: int, friend_id: int):
     return await run_in_threadpool(social_mgr.remove_friend, user_id, friend_id)
+
+
+##### Notification endpoints
+class FriendRequest(BaseModel):
+    user_id: int
+    friend_id: int
+
+class CompInvite(BaseModel):
+    user_id: int
+    comp_id: int
+
+@app.get("/notifications/friends/{user_id}")
+async def get_friends(user_id: int):
+    return await run_in_threadpool(noti_mgr.get_friend_requests, user_id)
+
+@app.put("/notifications/accept_request")
+async def accept_request(payload: FriendRequest):
+    return await run_in_threadpool(noti_mgr.accept_request, payload.user_id, payload.friend_id)
+
+@app.post("/notifications/deny_request")
+async def deny_request(payload: FriendRequest):
+    return await run_in_threadpool(noti_mgr.deny_request, payload.user_id, payload.friend_id)
+
+@app.get("/notifications/invites/{user_id}")
+async def get_invites(user_id: int):
+    return await run_in_threadpool(noti_mgr.get_competition_invites, user_id)
+
+@app.put("/notifications/accept_invite")
+async def accept_invite(payload: CompInvite):
+    return await run_in_threadpool(noti_mgr.accept_invite, payload.user_id, payload.comp_id)
+
+@app.post("/notifications/deny_invite")
+async def deny_invite(payload: CompInvite):
+    return await run_in_threadpool(noti_mgr.deny_invite, payload.user_id, payload.comp_id)
+
+@app.get("/notifications/deadlines/{user_id}")
+async def get_deadlines(user_id: int):
+    return await run_in_threadpool(noti_mgr.get_competition_deadlines, user_id)
