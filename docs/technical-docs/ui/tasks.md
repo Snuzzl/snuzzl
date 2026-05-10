@@ -1,7 +1,3 @@
 # Tasks
 
-
-
-# Routines
-
-A
+::: app.ui.ui_task_manager
