@@ -31,11 +31,13 @@ class ChallengesUI(ft.Column):
         self.feedback_callback = feedback_callback
         self.on_open_tasks = on_open_tasks
         self._view_mode = "your"
-        self._hide_failed = False
         self._expanded_reward_ids = set()
         self._user_challenges = []
         self._all_challenges = []
         self._rewards_by_challenge = {}
+        self._previous_reward_ids = set()
+        self._newly_awarded_rewards = []
+        self._show_expired = False
 
         self.available_list = ft.Column()
         self.available_list.spacing = 8
@@ -56,12 +58,10 @@ class ChallengesUI(ft.Column):
 
         self.your_btn = ft.TextButton("your challenges", on_click=self.show_your_challenges, tooltip="show challenges you joined")
         self.all_btn = ft.TextButton("all challenges", on_click=self.show_all_challenges, tooltip="show all available challenges")
-        self.failed_toggle_btn = ft.TextButton("toggle failed", on_click=self.toggle_failed_visibility, tooltip="hide or show failed challenges")
-        self.failed_toggle_state = ft.Text("showing failed", size=11, color=ft.Colors.OUTLINE)
 
         self.switch_row = ft.Row()
         self.switch_row.alignment = ft.MainAxisAlignment.START
-        self.switch_row.controls = [self.your_btn, self.all_btn, self.failed_toggle_btn, self.failed_toggle_state]
+        self.switch_row.controls = [self.your_btn, self.all_btn]
 
         self.controls = [
             ft.Text("challenges", size=18, weight=ft.FontWeight.BOLD),
@@ -75,6 +75,7 @@ class ChallengesUI(ft.Column):
         if callable(self.feedback_callback):
             self.feedback_callback(message, color_value)
 
+
     def _safe_update(self):
         try:
             self.update()
@@ -83,33 +84,48 @@ class ChallengesUI(ft.Column):
 
     def _is_dark_mode(self):
         try:
-            return self.page is not None and self.page.theme_mode == ft.ThemeMode.DARK
+            if self.page is None:
+                return False
+            if self.page.theme_mode == ft.ThemeMode.DARK:
+                return True
+            if self.page.theme_mode == ft.ThemeMode.LIGHT:
+                return False
+            brightness = getattr(self.page, "platform_brightness", None)
+            if brightness is not None:
+                return brightness == ft.Brightness.DARK
+            # If theme mode is SYSTEM and brightness is unavailable, prefer dark
+            # to avoid blinding cards when host/editor is in dark mode.
+            return True
         except Exception:
             return False
 
     def _theme_tokens(self):
         if self._is_dark_mode():
             return {
-                "panel_bg": "#111827",
-                "panel_border": "#374151",
-                "card_bg": "#0B1220",
-                "card_border": "#60A5FA",
+                "panel_bg": "#111419",
+                "panel_border": "#222831",
+                "card_bg": "#161B22",
+                "card_border": "#2B313A",
                 "title": "#FFFFFF",
-                "subtitle": "#D1D5DB",
+                "subtitle": "#C4CDD8",
             }
         return {
-            "panel_bg": "#F8FAFC",
-            "panel_border": "#CBD5E1",
-            "card_bg": "#EEF2F7",
-            "card_border": "#334155",
+            "panel_bg": "#F5F7FA",
+            "panel_border": "#D8DEE7",
+            "card_bg": "#ECEFF4",
+            "card_border": "#C3CBD7",
             "title": "#111827",
-            "subtitle": "#334155",
+            "subtitle": "#4B5563",
         }
 
-    def _refresh_failed_toggle_button(self):
-        self.failed_toggle_state.value = "failed hidden" if self._hide_failed else "showing failed"
-        self.failed_toggle_state.color = ft.Colors.BLUE if self._hide_failed else ft.Colors.OUTLINE
-        self.switch_row.controls = [self.your_btn, self.all_btn, self.failed_toggle_btn, self.failed_toggle_state]
+    def _run_task(self, coroutine_fn, *args):
+        try:
+            if self.page is not None:
+                run_task = getattr(self.page, "run_task", None)
+                if callable(run_task):
+                    run_task(coroutine_fn, *args)
+        except Exception:
+            pass
 
     def _apply_view_mode(self):
         self.your_section.visible = self._view_mode == "your"
@@ -141,97 +157,124 @@ class ChallengesUI(ft.Column):
             setattr(column, key, value)
         return column
 
-    def _task_hint_row(self, chall_id, status):
-        if status not in {"active", "failed"}:
-            return self._make_container()
-        message = "required tasks pending" if status == "active" else "challenge ended, check required tasks"
-        open_tasks = ft.TextButton("Open Tasks", on_click=lambda e, cid=chall_id: self.open_tasks_for_challenge_id(cid))
-        return self._make_row([ft.Text(message, size=10, color=ft.Colors.OUTLINE), open_tasks], alignment=ft.MainAxisAlignment.START, spacing=4)
+    def _task_hint_row(self, challenge, status):
+        progress = challenge.get("required_progress") or {}
+        required_total = int(progress.get("required_total") or challenge.get("required_count") or 0)
+        completed_total = int(progress.get("completed_total") or 0)
+
+        if required_total <= 0:
+            message = "no challenge requirements configured"
+        elif status == "completed":
+            message = f"requirements met: {required_total}/{required_total} completed"
+        elif status == "failed":
+            message = f"challenge ended at {completed_total}/{required_total} requirements completed"
+        else:
+            message = f"progress: {completed_total}/{required_total} requirements completed"
+
+        return self._make_row(
+            [
+                ft.Text(
+                    message,
+                    size=12,
+                    color=ft.Colors.OUTLINE,
+                )
+            ],
+            alignment=ft.MainAxisAlignment.START,
+            spacing=4,
+        )
 
     def _build_user_challenge_card(self, challenge, status, rewards_by_challenge):
         chall_id = challenge.get("chall_id")
         if chall_id is None:
             return None
 
+        tokens = self._theme_tokens()
         theme = status_theme(status)
-        reward_count = len(rewards_by_challenge.get(chall_id, []))
         required_summary = challenge.get("required_summary") or "no required tasks configured"
         challenge_rewards = rewards_by_challenge.get(chall_id, [])
-        show_rewards = (chall_id in self._expanded_reward_ids) or (status == "completed")
+        show_rewards = chall_id in self._expanded_reward_ids
 
         header = self._make_row(
             [
                 self._make_column(
                     [
-                        ft.Text(f"{challenge.get('chall_name', 'unnamed challenge')} {theme['badge']}", weight=ft.FontWeight.BOLD, color=theme["text_color"]),
-                        ft.Text(f"{reward_count} reward{'s' if reward_count != 1 else ''} | ends {friendly_date(challenge.get('chall_edate', 'unknown'))}", size=11, color=ft.Colors.OUTLINE),
-                        ft.Text(required_summary, size=11, color=ft.Colors.OUTLINE),
+                        ft.Text(f"{challenge.get('chall_name', 'unnamed challenge')} {theme['badge']}", weight=ft.FontWeight.BOLD, color=tokens["title"]),
+                        ft.Text(f"ends {friendly_date(challenge.get('chall_edate', 'unknown'))}", size=11, color=tokens["subtitle"]),
+                        ft.Text(required_summary, size=11, color=tokens["subtitle"]),
                     ],
                     spacing=2,
                     expand=True,
                 ),
-                ft.TextButton("Leave", on_click=lambda e, cid=chall_id: self.leave_challenge_by_id(cid), disabled=status == "failed"),
+                ft.Button("Leave", on_click=lambda e, cid=chall_id: self._run_task(self.leave_challenge_by_id, cid), disabled=status == "failed"),
             ],
             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
         )
 
+        if status == "completed":
+            accent_color = "#16A34A"
+        elif status == "failed":
+            accent_color = "#EF4444"
+        else:
+            accent_color = "#0EA5E9"
+
         body = self._make_column(
             [
+                self._make_container(height=3, bgcolor=accent_color, border_radius=3),
                 header,
-                ft.Text("challenge failed: rewards are locked", size=10, color=ft.Colors.OUTLINE) if status == "failed" else self._make_container(),
-                self._task_hint_row(chall_id, status),
+                ft.Text("challenge failed: rewards are locked", size=12, color="#EF4444") if status == "failed" else self._make_container(),
+                self._task_hint_row(challenge, status),
                 self._build_rewards_block(chall_id, challenge_rewards, show_rewards, status == "completed", False, True, status),
             ],
             spacing=6,
         )
 
-        return self._make_container(body, padding=10, border=ft.border.all(1, theme["border_color"]), bgcolor=theme["bg_color"] or self._theme_tokens()["card_bg"], border_radius=10)
+        return self._make_container(body, padding=10, border=ft.border.all(1, tokens["card_border"]), bgcolor=tokens["card_bg"], border_radius=10)
 
     def _build_catalog_challenge_card(self, challenge, joined, status, rewards_by_challenge):
         chall_id = challenge.get("chall_id")
         if chall_id is None:
             return None
 
-        reward_count = len(rewards_by_challenge.get(chall_id, []))
         tokens = self._theme_tokens()
         required_summary = challenge.get("required_summary") or "no required tasks configured"
         card_bg = tokens["card_bg"]
         card_border = tokens["card_border"]
+        if status == "completed":
+            accent_color = "#16A34A"
+        elif status == "failed":
+            accent_color = "#EF4444"
+        elif joined:
+            accent_color = "#14B8A6"
+        else:
+            accent_color = "#64748B"
         status_badge = f" {status_theme(status)['badge']}" if status else ""
 
         header = self._make_row(
             [
                 ft.Text(f"{challenge.get('chall_name', 'unnamed challenge')}{status_badge}", color=tokens["title"], weight=ft.FontWeight.BOLD, expand=True),
-                ft.TextButton("Joined" if joined else "Join", on_click=lambda e, cid=chall_id: self.join_challenge_by_id(cid), disabled=joined),
+                ft.Button("Joined" if joined else "Join", on_click=lambda e, cid=chall_id: self._run_task(self.join_challenge_by_id, cid), disabled=joined),
             ],
             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
         )
 
         body = self._make_column(
             [
+                self._make_container(height=3, bgcolor=accent_color, border_radius=3),
                 header,
-                ft.Text(f"rewards: {reward_count} | id: {chall_id}", size=11, color=tokens["subtitle"]),
-                ft.Text(challenge.get("chall_desc", "") or "no description", size=11, color=tokens["subtitle"]),
-                ft.Text(required_summary, size=11, color=tokens["subtitle"]),
-                ft.Text("challenge failed", size=10, color="#EF4444") if status == "failed" else self._make_container(),
+                ft.Text(f"requirements: {required_summary}", size=12, color=tokens["subtitle"]),
+                ft.Text("status: challenge failed", size=12, color="#EF4444") if status == "failed" else self._make_container(),
             ],
             spacing=4,
         )
 
         return self._make_container(body, bgcolor=card_bg, border=ft.border.all(1, card_border), border_radius=6, padding=8, margin=ft.margin.only(bottom=6))
 
-    async def show_your_challenges(self, e):
+    def show_your_challenges(self, e):
         self._view_mode = "your"
         self._render_from_cache()
 
-    async def show_all_challenges(self, e):
+    def show_all_challenges(self, e):
         self._view_mode = "all"
-        self._render_from_cache()
-
-    async def toggle_failed_visibility(self, e):
-        self._hide_failed = not self._hide_failed
-        self._refresh_failed_toggle_button()
-        self._send_feedback("failed challenges hidden" if self._hide_failed else "failed challenges shown", ft.Colors.BLUE)
         self._render_from_cache()
 
     async def load_challenges(self):
@@ -281,6 +324,17 @@ class ChallengesUI(ft.Column):
         self._user_challenges = user_challenges
         self._all_challenges = all_challenges
         self._rewards_by_challenge = group_rewards_by_challenge(rewards)
+        
+        # Track reward changes for future features; no persistent top banner.
+        current_claimed_ids = {r["reward_id"] for r in rewards if r.get("user_claimed")}
+        newly_awarded = current_claimed_ids - self._previous_reward_ids
+        self._previous_reward_ids = current_claimed_ids
+        self._newly_awarded_rewards = [
+            r["reward_name"]
+            for r in rewards
+            if r.get("reward_id") in newly_awarded
+        ]
+        
         self._render_from_cache()
         if warnings:
             self._send_feedback(f"partial load warning: {', '.join(warnings)}", ft.Colors.RED)
@@ -292,31 +346,84 @@ class ChallengesUI(ft.Column):
 
         self.challenges_list.controls = []
         if not user_challenges:
-            self.challenges_list.controls = [ft.Text("no challenges yet")]
+            self.challenges_list.controls = [ft.Text("no challenges yet", size=12)]
 
         enrolled_ids = set()
         enrolled_statuses = {}
-        sorted_user_challenges = sorted(user_challenges, key=lambda ch: (ch.get("challenge_status") == "failed", ch.get("chall_name", "").lower()))
-
-        for challenge in sorted_user_challenges:
+        
+        # Separate active/completed from failed
+        active_challenges = []
+        failed_challenges = []
+        
+        for challenge in user_challenges:
+            status = challenge.get("challenge_status", "active")
+            if status == "failed":
+                failed_challenges.append(challenge)
+            else:
+                active_challenges.append(challenge)
+        
+        # Sort active/completed by name
+        active_challenges.sort(key=lambda ch: ch.get("chall_name", "").lower())
+        
+        # Display active/completed first
+        for challenge in active_challenges:
             chall_id = challenge.get("chall_id")
             if chall_id is None:
                 continue
             enrolled_ids.add(chall_id)
             status = challenge.get("challenge_status", "active")
             enrolled_statuses[chall_id] = status
-            if self._hide_failed and status == "failed":
-                continue
             card = self._build_user_challenge_card(challenge, status, rewards_by_challenge)
             if card is not None:
                 self.challenges_list.controls.append(card)
+        
+        # Add expired section if there are failed challenges
+        if failed_challenges:
+            tokens = self._theme_tokens()
+            failed_count = len(failed_challenges)
+            
+            def toggle_expired(e):
+                self._show_expired = not self._show_expired
+                self._render_from_cache()
+            
+            toggle_state_text = "expanded" if self._show_expired else "collapsed"
+            expired_header = ft.Row(
+                [
+                    ft.Icon(ft.Icons.FLAG, size=16, color="#EF4444"),
+                    ft.Text(f"expired ({failed_count}) - {toggle_state_text}. activate to {'collapse' if self._show_expired else 'expand'}", size=12, color="#EF4444", weight=ft.FontWeight.BOLD, expand=True),
+                    ft.Icon(ft.Icons.EXPAND_LESS if self._show_expired else ft.Icons.EXPAND_MORE, size=16, color="#EF4444"),
+                ],
+                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+            )
+            
+            expired_section = self._make_container(
+                expired_header,
+                on_click=toggle_expired,
+                padding=10,
+                bgcolor=tokens["panel_bg"],
+                border=ft.border.all(1, "#EF4444"),
+                border_radius=8,
+            )
+            self.challenges_list.controls.append(expired_section)
+            
+            # Show failed challenges if expanded
+            if self._show_expired:
+                for challenge in failed_challenges:
+                    chall_id = challenge.get("chall_id")
+                    if chall_id is None:
+                        continue
+                    enrolled_ids.add(chall_id)
+                    status = "failed"
+                    enrolled_statuses[chall_id] = status
+                    card = self._build_user_challenge_card(challenge, status, rewards_by_challenge)
+                    if card is not None:
+                        self.challenges_list.controls.append(card)
 
         self.available_list.controls = []
         tokens = self._theme_tokens()
-        self.available_list.controls.append(self._make_container(ft.Text(f"browse all challenges ({len(all_challenges)})", size=12, color=tokens["subtitle"]), bgcolor=tokens["panel_bg"], border=ft.border.all(1, tokens["panel_border"]), border_radius=8, padding=8))
 
         if not all_challenges:
-            self.available_list.controls.append(self._make_container(ft.Text("no challenges available", color="#111827"), bgcolor="#E2E8F0", border=ft.border.all(2, "#334155"), border_radius=8, padding=10))
+            self.available_list.controls.append(self._make_container(ft.Text("no challenges available", color=tokens["title"], size=12), bgcolor=tokens["card_bg"], border=ft.border.all(1, tokens["card_border"]), border_radius=8, padding=10))
 
         sorted_all_challenges = sorted(all_challenges, key=lambda ch: (enrolled_statuses.get(ch.get("chall_id")) == "failed", ch.get("chall_name", "").lower()))
         for challenge in sorted_all_challenges:
@@ -325,8 +432,6 @@ class ChallengesUI(ft.Column):
                 continue
             joined = chall_id in enrolled_ids
             status = enrolled_statuses.get(chall_id)
-            if self._hide_failed and status == "failed":
-                continue
             card = self._build_catalog_challenge_card(challenge, joined, status, rewards_by_challenge)
             if card is not None:
                 self.available_list.controls.append(card)
@@ -339,7 +444,14 @@ class ChallengesUI(ft.Column):
             return self._make_container()
 
         toggle_label = ("hide rewards" if show_rewards else "show rewards") + f" ({len(challenge_rewards)})"
-        reward_rows = [self._make_container(ft.TextButton(toggle_label, on_click=lambda e, cid=chall_id: self.toggle_reward_preview_for_challenge(cid)), padding=ft.padding.only(bottom=4))]
+        tokens = self._theme_tokens()
+        toggle_btn = ft.Button(
+            toggle_label,
+            on_click=lambda e, cid=chall_id: self._run_task(self.toggle_reward_preview_for_challenge, cid),
+            color=tokens["title"],
+            bgcolor=tokens["panel_bg"],
+        )
+        reward_rows = [self._make_container(toggle_btn, padding=ft.padding.only(bottom=4))]
 
         if not show_rewards:
             return self._make_container(self._make_column(reward_rows, spacing=4), padding=ft.padding.only(left=6, top=4, bottom=4))
@@ -347,49 +459,72 @@ class ChallengesUI(ft.Column):
         for reward in challenge_rewards:
             is_claimed = reward.get("user_claimed", False)
             if is_claimed:
-                claim_label = "✓ Claimed"
+                claim_label = "awarded"
                 claim_disabled = True
-                reward_bg = "#D1FAE5" if not self._is_dark_mode() else "#065F46"
+                reward_bg = None
+                reward_border = "#16A34A"
             elif preview_only:
-                claim_label = "join challenge first"
+                claim_label = "join first"
                 claim_disabled = True
                 reward_bg = None
+                reward_border = tokens["card_border"]
             elif status == "failed":
-                claim_label = "challenge failed"
+                claim_label = "locked"
                 claim_disabled = True
                 reward_bg = None
+                reward_border = "#EF4444"
             elif can_claim:
-                claim_label = "claim reward"
-                claim_disabled = reward.get("reward_id") is None
+                claim_label = "awarded"
+                claim_disabled = True
                 reward_bg = None
+                reward_border = "#16A34A"
             elif joined:
-                claim_label = "complete tasks first"
+                claim_label = "pending"
                 claim_disabled = True
                 reward_bg = None
+                reward_border = tokens["card_border"]
             else:
-                claim_label = "join challenge first"
+                claim_label = "join first"
                 claim_disabled = True
                 reward_bg = None
+                reward_border = tokens["card_border"]
+
+            if claim_disabled:
+                action_control = self._make_container(
+                    ft.Text(claim_label, size=12, weight=ft.FontWeight.BOLD, color=tokens["title"]),
+                    padding=ft.padding.symmetric(horizontal=8, vertical=4),
+                    bgcolor=tokens["panel_bg"],
+                    border=ft.border.all(1, reward_border),
+                    border_radius=6,
+                )
+            else:
+                action_control = ft.Button(
+                    claim_label,
+                    on_click=lambda e, rid=reward.get("reward_id"): self._run_task(self.claim_reward_by_id, rid),
+                    color=tokens["title"],
+                    bgcolor=tokens["panel_bg"],
+                    disabled=False,
+                )
 
             reward_rows.append(
                 self._make_container(
-                    self._make_row(
+                    self._make_column(
                         [
-                            self._make_column(
+                            ft.Text(reward.get("reward_name", "unnamed reward"), weight=ft.FontWeight.BOLD, size=12, color=tokens["title"]),
+                            self._make_row(
                                 [
-                                    ft.Text(reward.get("reward_name", "unnamed reward"), weight=ft.FontWeight.BOLD, size=12),
-                                    ft.Text(f"category: {reward.get('reward_type', 'unknown')}", size=10, color=ft.Colors.OUTLINE),
+                                    ft.Text(f"category: {reward.get('reward_type', 'unknown')}", size=12, color=tokens["subtitle"], expand=True),
+                                    action_control,
                                 ],
-                                spacing=2,
-                                expand=True,
+                                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                                vertical_alignment=ft.CrossAxisAlignment.CENTER,
                             ),
-                            ft.TextButton(claim_label, on_click=lambda e, rid=reward.get("reward_id"): self.claim_reward_by_id(rid), disabled=claim_disabled),
                         ],
-                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                        spacing=4,
                     ),
-                    padding=10,
-                    bgcolor=reward_bg,
-                    border=ft.border.all(1, color("OUTLINE_VARIANT", ft.Colors.OUTLINE)),
+                    padding=8,
+                    bgcolor=reward_bg or tokens["card_bg"],
+                    border=ft.border.all(1, reward_border),
                     border_radius=8,
                 )
             )
@@ -417,11 +552,14 @@ class ChallengesUI(ft.Column):
                 response = await client.post(f"{API_ROOT}/rewards/user/{self.user_id}/claim", json={"reward_id": reward_id})
                 response.raise_for_status()
             payload = response.json()
-            self._send_feedback(f"claimed reward {reward_id}" if payload.get("claimed") else f"unclaimed reward {reward_id}", ft.Colors.GREEN if payload.get("claimed") else ft.Colors.BLUE)
+            if payload.get("already_claimed"):
+                self._send_feedback(f"✓ Reward already earned", ft.Colors.BLUE)
+            else:
+                self._send_feedback(f"🎉 Reward earned! Check your rewards tab.", ft.Colors.GREEN)
         except httpx.HTTPStatusError as err:
             detail = http_error_detail(err)
-            if "complete all challenge tasks" in detail.lower():
-                detail = "complete required challenge tasks first (check Tasks screen), then claim this reward"
+            if "complete challenge requirements" in detail.lower():
+                detail = "Complete all required tasks first to earn this reward"
             self._send_feedback(f"couldn't claim reward: {detail}", ft.Colors.RED)
         except Exception as err:
             self._send_feedback(f"error claiming reward: {err}", ft.Colors.RED)
