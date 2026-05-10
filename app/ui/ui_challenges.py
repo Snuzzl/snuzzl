@@ -69,6 +69,16 @@ def _friendly_date(value: str) -> str:
         return value or "unknown"
 
 
+def _loading_placeholder(label: str):
+    return ft.Row(
+        [
+            ft.ProgressRing(width=14, height=14, stroke_width=2),
+            ft.Text(label, size=12, color=ft.Colors.OUTLINE),
+        ],
+        spacing=8,
+    )
+
+
 def _status_theme(status: str):
     muted_bg = _color("SURFACE_VARIANT", _color("SURFACE", None))
     muted_border = _color("OUTLINE_VARIANT", ft.Colors.OUTLINE)
@@ -113,12 +123,14 @@ class ChallengesUI(ft.Column):
         self._user_challenges: list[dict] = []
         self._all_challenges: list[dict] = []
         self._rewards_by_challenge: dict[int, list[dict]] = {}
-        self.available_list = ft.Column([ft.Text("loading available challenges...")], spacing=8)
-        self.challenges_list = ft.Column([ft.Text("loading challenges...")], spacing=8)
+        self.available_list = ft.Column([_loading_placeholder("loading challenge catalog")], spacing=8)
+        self.challenges_list = ft.Column([_loading_placeholder("loading your challenges")], spacing=8)
         self.your_section = ft.Column([
+            ft.Text("your challenges", size=14, weight=ft.FontWeight.BOLD),
             self.challenges_list,
         ], spacing=8)
         self.all_section = ft.Column([
+            ft.Text("all challenges", size=14, weight=ft.FontWeight.BOLD),
             self.available_list,
         ], spacing=8, visible=False)
 
@@ -128,7 +140,7 @@ class ChallengesUI(ft.Column):
         self.controls = [
             ft.Text("challenges", size=18, weight=ft.FontWeight.BOLD),
             ft.Text("join a challenge to start working toward its rewards", size=12, color=ft.Colors.OUTLINE),
-            ft.Text("accessibility tip: use Tab/Shift+Tab to move through controls and Enter to activate", size=11, color=ft.Colors.OUTLINE),
+            ft.Text("accessibility: use Tab/Shift+Tab to move and Enter to activate", size=11, color=ft.Colors.OUTLINE),
             ft.Row(
                 [
                     self.your_btn,
@@ -169,8 +181,8 @@ class ChallengesUI(ft.Column):
 
     async def load_challenges(self):
         """Load and display enrolled and available challenges."""
-        self.challenges_list.controls = [ft.Text("loading challenges...")]
-        self.available_list.controls = [ft.Text("loading available challenges...")]
+        self.challenges_list.controls = [_loading_placeholder("loading your challenges")]
+        self.available_list.controls = [_loading_placeholder("loading challenge catalog")]
         self._safe_update()
         warnings = []
         try:
@@ -390,7 +402,7 @@ class ChallengesUI(ft.Column):
                             ft.Column(
                                 [
                                     ft.Text(reward.get('reward_name', 'unnamed reward'), weight=ft.FontWeight.BOLD, size=12),
-                                    ft.Text(f"type: {reward.get('reward_type', 'unknown')}", size=10, color=ft.Colors.OUTLINE),
+                                    ft.Text(f"category: {reward.get('reward_type', 'unknown')}", size=10, color=ft.Colors.OUTLINE),
                                 ],
                                 spacing=2,
                                 expand=True,
