@@ -134,8 +134,8 @@ class ChallengesUI(ft.Column):
             self.available_list,
         ], spacing=8, visible=False)
 
-        self.your_btn = ft.Button("your challenges", on_click=self.show_your_challenges)
-        self.all_btn = ft.Button("all challenges", on_click=self.show_all_challenges)
+        self.your_btn = ft.Button("your challenges", on_click=self.show_your_challenges, tooltip="show challenges you joined")
+        self.all_btn = ft.Button("all challenges", on_click=self.show_all_challenges, tooltip="show all available challenges")
 
         self.controls = [
             ft.Text("challenges", size=18, weight=ft.FontWeight.BOLD),
@@ -412,6 +412,7 @@ class ChallengesUI(ft.Column):
                                 data=reward.get("reward_id"),
                                 on_click=self.claim_reward,
                                 disabled=claim_disabled,
+                                tooltip="claim this reward" if not claim_disabled else claim_label,
                             ),
                         ],
                         alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
