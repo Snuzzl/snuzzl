@@ -5,11 +5,18 @@
 import flet as ft
 import httpx
 import os
-import asyncio
 from datetime import datetime
 
 
 API_ROOT = os.getenv("SNUZZL_API_ROOT", "http://127.0.0.1:8000")
+
+
+def _color(name: str, fallback):
+    """Get a Flet color constant with a fallback for older Flet versions."""
+    try:
+        return getattr(ft.Colors, name)
+    except Exception:
+        return fallback
 
 
 def _http_error_detail(err: httpx.HTTPStatusError) -> str:
@@ -32,30 +39,59 @@ def _is_challenge_expired(end_date_str: str) -> bool:
 def _group_rewards_by_challenge(rewards):
     grouped = {}
     for reward in rewards:
-        grouped.setdefault(reward["chall_id"], []).append(reward)
+        chall_id = reward.get("chall_id") if isinstance(reward, dict) else None
+        if chall_id is None:
+            continue
+        grouped.setdefault(chall_id, []).append(reward)
     return grouped
 
 
+def _normalize_api_list(payload, keys=None):
+    """Normalize API payloads into a list of dict records."""
+    if isinstance(payload, list):
+        return [item for item in payload if isinstance(item, dict)]
+    if isinstance(payload, dict):
+        for key in (keys or ["items", "data", "results"]):
+            value = payload.get(key)
+            if isinstance(value, list):
+                return [item for item in value if isinstance(item, dict)]
+        for value in payload.values():
+            if isinstance(value, list):
+                return [item for item in value if isinstance(item, dict)]
+    return []
+
+
+def _friendly_date(value: str) -> str:
+    """Format YYYY-MM-DD to a shorter readable date."""
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").strftime("%d %b %Y")
+    except Exception:
+        return value or "unknown"
+
+
 def _status_theme(status: str):
+    muted_bg = _color("SURFACE_VARIANT", _color("SURFACE", None))
+    muted_border = _color("OUTLINE_VARIANT", ft.Colors.OUTLINE)
+    muted_text = _color("ON_SURFACE", ft.Colors.BLACK)
     if status == "completed":
         return {
-            "badge": "✓ COMPLETED",
-            "text_color": ft.Colors.ON_SURFACE,
-            "border_color": ft.Colors.OUTLINE_VARIANT,
-            "bg_color": ft.Colors.SURFACE_VARIANT,
+            "badge": "completed",
+            "text_color": _color("ON_SECONDARY_CONTAINER", muted_text),
+            "border_color": _color("SECONDARY", muted_border),
+            "bg_color": _color("SECONDARY_CONTAINER", muted_bg),
         }
     if status == "failed":
         return {
-            "badge": "✗ FAILED",
-            "text_color": ft.Colors.ON_SURFACE,
-            "border_color": ft.Colors.OUTLINE_VARIANT,
-            "bg_color": ft.Colors.SURFACE_VARIANT,
+            "badge": "failed",
+            "text_color": _color("ON_ERROR_CONTAINER", muted_text),
+            "border_color": _color("ERROR", muted_border),
+            "bg_color": _color("ERROR_CONTAINER", muted_bg),
         }
     return {
-        "badge": "⚡ ACTIVE",
-        "text_color": ft.Colors.ON_SURFACE,
-        "border_color": ft.Colors.OUTLINE_VARIANT,
-        "bg_color": ft.Colors.SURFACE_VARIANT,
+        "badge": "active",
+        "text_color": muted_text,
+        "border_color": muted_border,
+        "bg_color": muted_bg,
     }
 
 
@@ -74,6 +110,9 @@ class ChallengesUI(ft.Column):
         self.feedback_callback = feedback_callback
         self._view_mode = "your"
         self._expanded_reward_ids = set()
+        self._user_challenges: list[dict] = []
+        self._all_challenges: list[dict] = []
+        self._rewards_by_challenge: dict[int, list[dict]] = {}
         self.available_list = ft.Column([ft.Text("loading available challenges...")], spacing=8)
         self.challenges_list = ft.Column([ft.Text("loading challenges...")], spacing=8)
         self.your_section = ft.Column([
@@ -89,6 +128,7 @@ class ChallengesUI(ft.Column):
         self.controls = [
             ft.Text("challenges", size=18, weight=ft.FontWeight.BOLD),
             ft.Text("join a challenge to start working toward its rewards", size=12, color=ft.Colors.OUTLINE),
+            ft.Text("accessibility tip: use Tab/Shift+Tab to move through controls and Enter to activate", size=11, color=ft.Colors.OUTLINE),
             ft.Row(
                 [
                     self.your_btn,
@@ -104,12 +144,20 @@ class ChallengesUI(ft.Column):
         if callable(self.feedback_callback):
             self.feedback_callback(message, color)
 
+    def _safe_update(self):
+        """Update only when attached to a page to avoid mount-timing crashes."""
+        try:
+            self.update()
+        except Exception:
+            # Control not attached yet; skip redraw until mounted.
+            pass
+
     def _apply_view_mode(self):
         self.your_section.visible = self._view_mode == "your"
         self.all_section.visible = self._view_mode == "all"
         self.your_btn.disabled = self._view_mode == "your"
         self.all_btn.disabled = self._view_mode == "all"
-        self.update()
+        self._safe_update()
 
     async def show_your_challenges(self, e):
         self._view_mode = "your"
@@ -123,183 +171,246 @@ class ChallengesUI(ft.Column):
         """Load and display enrolled and available challenges."""
         self.challenges_list.controls = [ft.Text("loading challenges...")]
         self.available_list.controls = [ft.Text("loading available challenges...")]
-        self.update()
+        self._safe_update()
+        warnings = []
         try:
+            user_challenges = self._user_challenges
+            all_challenges = self._all_challenges
+            rewards = []
             async with httpx.AsyncClient() as client:
-                user_response = await client.get(f"{API_ROOT}/challenges/{self.user_id}")
-                user_response.raise_for_status()
-                user_challenges = user_response.json()
+                try:
+                    user_response = await client.get(f"{API_ROOT}/challenges/{self.user_id}")
+                    user_response.raise_for_status()
+                    user_challenges = _normalize_api_list(user_response.json(), ["challenges", "items", "data", "results"])
+                except Exception as err:
+                    warnings.append(f"your challenges: {type(err).__name__}")
 
-                all_response = await client.get(f"{API_ROOT}/challenges")
-                all_response.raise_for_status()
-                all_challenges = all_response.json()
+                try:
+                    all_response = await client.get(f"{API_ROOT}/challenges")
+                    all_response.raise_for_status()
+                    all_challenges = _normalize_api_list(all_response.json(), ["challenges", "items", "data", "results"])
+                except Exception as err:
+                    warnings.append(f"all challenges: {type(err).__name__}")
 
-                rewards_response = await client.get(f"{API_ROOT}/rewards")
-                rewards_response.raise_for_status()
-                rewards = rewards_response.json()
+                try:
+                    rewards_response = await client.get(f"{API_ROOT}/rewards")
+                    rewards_response.raise_for_status()
+                    rewards = _normalize_api_list(rewards_response.json(), ["rewards", "items", "data", "results"])
+                except Exception as err:
+                    warnings.append(f"rewards: {type(err).__name__}")
 
-            rewards_by_challenge = _group_rewards_by_challenge(rewards)
-
-            self.challenges_list.controls.clear()
-            if not user_challenges:
-                self.challenges_list.controls.append(ft.Text("no challenges yet"))
-
-            enrolled_ids = set()
-            enrolled_statuses = {}
-            for challenge in user_challenges:
-                chall_id = challenge["chall_id"]
-                enrolled_ids.add(chall_id)
-                status = challenge.get("challenge_status", "active")
-                enrolled_statuses[chall_id] = status
-                theme = _status_theme(status)
-                reward_count = len(rewards_by_challenge.get(chall_id, []))
-                challenge_rewards = rewards_by_challenge.get(chall_id, [])
-                challenge_card = ft.Column(
-                    [
-                        ft.Row(
-                            [
-                                ft.Column(
-                                    [
-                                        ft.Text(f"{challenge['chall_name']} {theme['badge']}", weight=ft.FontWeight.BOLD),
-                                        ft.Text(f"{reward_count} reward{'s' if reward_count != 1 else ''} | ends {challenge['chall_edate']}", size=11, color=ft.Colors.OUTLINE),
-                                    ],
-                                    spacing=2,
-                                    expand=True,
-                                ),
-                                ft.Button("Leave", data=chall_id, on_click=self.leave_challenge, disabled=status == "failed"),
-                            ],
-                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                        ),
-                        ft.Text("→ go to tasks to complete this challenge", size=10, color=ft.Colors.OUTLINE) if status == "active" else ft.Container(),
-                        self._build_rewards_block(
-                            challenge_rewards,
-                            show_rewards=True,
-                            can_claim=status != "failed",
-                            preview_only=False,
-                        ),
-                    ],
-                    spacing=6,
-                )
-                self.challenges_list.controls.append(
-                    ft.Container(
-                        content=challenge_card,
-                        padding=10,
-                        border=ft.border.all(1, theme["border_color"]),
-                        bgcolor=theme["bg_color"],
-                        border_radius=10,
-                    )
-                )
-
-            self.available_list.controls.clear()
-            if not all_challenges:
-                self.available_list.controls.append(ft.Text("no challenge templates found"))
-            for challenge in all_challenges:
-                chall_id = challenge["chall_id"]
-                joined = chall_id in enrolled_ids
-                status = enrolled_statuses.get(chall_id)
-                reward_count = len(rewards_by_challenge.get(chall_id, []))
-                challenge_rewards = rewards_by_challenge.get(chall_id, [])
-                show_rewards = chall_id in self._expanded_reward_ids or joined
-                status_badge = f" {_status_theme(status)['badge']}" if status else ""
-                action_row = [
-                    ft.Column(
-                        [
-                            ft.Text(f"{challenge['chall_name']}{status_badge}", weight=ft.FontWeight.BOLD),
-                            ft.Text(
-                                f"{reward_count} reward{'s' if reward_count != 1 else ''}" + (f" • {challenge.get('chall_desc', '')[:50]}" if challenge.get("chall_desc") else ""),
-                                size=11,
-                                color=ft.Colors.OUTLINE,
-                            ),
-                        ],
-                        spacing=2,
-                        expand=True,
-                    ),
-                    ft.Button(
-                        "→",
-                        data=chall_id,
-                        on_click=self.toggle_reward_preview,
-                        disabled=not challenge_rewards,
-                    ) if challenge_rewards else ft.Container(),
-                    ft.Button(
-                        "Joined" if joined else "Join",
-                        data=chall_id,
-                        on_click=self.join_challenge,
-                        disabled=joined,
-                    ),
-                ]
-                card_border_color = ft.Colors.OUTLINE_VARIANT
-                card_bg_color = None
-                if status:
-                    theme = _status_theme(status)
-                    card_border_color = theme["border_color"]
-                    card_bg_color = theme["bg_color"]
-                challenge_card = ft.Column(
-                    [
-                        ft.Row([r for r in action_row if r], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, wrap=True),
-                        self._build_rewards_block(
-                            challenge_rewards,
-                            show_rewards=show_rewards,
-                            can_claim=joined and status != "failed",
-                            preview_only=not joined,
-                        ),
-                    ],
-                    spacing=6,
-                )
-                self.available_list.controls.append(
-                    ft.Container(
-                        content=challenge_card,
-                        padding=10,
-                        border=ft.border.all(1, card_border_color),
-                        bgcolor=card_bg_color,
-                        border_radius=10,
-                    )
-                )
+            self._user_challenges = user_challenges
+            self._all_challenges = all_challenges
+            self._rewards_by_challenge = _group_rewards_by_challenge(rewards)
         except httpx.HTTPStatusError as err:
             detail = _http_error_detail(err)
             self.challenges_list.controls = [ft.Text(f"couldn't load challenges: {detail}", color=ft.Colors.RED)]
             self.available_list.controls = []
+            self._safe_update()
+            return
         except Exception as err:
             self.challenges_list.controls = [ft.Text(f"error loading challenges: {err}", color=ft.Colors.RED)]
             self.available_list.controls = []
-        self._apply_view_mode()
-        self.update()
+            self._safe_update()
+            return
 
-    def _build_rewards_block(self, challenge_rewards, show_rewards, can_claim, preview_only):
+        self._render_from_cache()
+        if warnings:
+            self._send_feedback(f"partial load warning: {', '.join(warnings)}", ft.Colors.RED)
+
+    def _render_from_cache(self):
+        user_challenges = self._user_challenges
+        all_challenges = self._all_challenges
+        rewards_by_challenge = self._rewards_by_challenge
+
+        self.challenges_list.controls.clear()
+        if not user_challenges:
+            self.challenges_list.controls.append(ft.Text("no challenges yet"))
+
+        enrolled_ids = set()
+        enrolled_statuses = {}
+        for challenge in user_challenges:
+            chall_id = challenge.get("chall_id")
+            if chall_id is None:
+                continue
+            enrolled_ids.add(chall_id)
+            status = challenge.get("challenge_status", "active")
+            enrolled_statuses[chall_id] = status
+            theme = _status_theme(status)
+            reward_count = len(rewards_by_challenge.get(chall_id, []))
+            challenge_rewards = rewards_by_challenge.get(chall_id, [])
+            show_rewards = chall_id in self._expanded_reward_ids
+            challenge_card = ft.Column(
+                [
+                    ft.Row(
+                        [
+                            ft.Column(
+                                [
+                                    ft.Text(f"{challenge.get('chall_name', 'unnamed challenge')} {theme['badge']}", weight=ft.FontWeight.BOLD, color=theme["text_color"]),
+                                    ft.Text(f"{reward_count} reward{'s' if reward_count != 1 else ''} | ends {_friendly_date(challenge.get('chall_edate', 'unknown'))}", size=11, color=ft.Colors.OUTLINE),
+                                ],
+                                spacing=2,
+                                expand=True,
+                            ),
+                            ft.Button("Leave", data=chall_id, on_click=self.leave_challenge, disabled=status == "failed"),
+                        ],
+                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                    ),
+                    ft.Text("challenge failed: rewards are locked", size=10, color=_color("ERROR", ft.Colors.RED)) if status == "failed" else ft.Container(),
+                    ft.Text("go to Tasks to complete this challenge", size=10, color=ft.Colors.OUTLINE) if status == "active" else ft.Container(),
+                    self._build_rewards_block(
+                        chall_id=chall_id,
+                        challenge_rewards=challenge_rewards,
+                        show_rewards=show_rewards,
+                        can_claim=status != "failed",
+                        preview_only=False,
+                        joined=True,
+                        status=status,
+                    ),
+                ],
+                spacing=6,
+            )
+            self.challenges_list.controls.append(
+                ft.Container(
+                    content=challenge_card,
+                    padding=10,
+                    border=ft.border.all(1, theme["border_color"]),
+                    bgcolor=theme["bg_color"],
+                    border_radius=10,
+                )
+            )
+
+        self.available_list.controls.clear()
+        if not all_challenges:
+            self.available_list.controls.append(ft.Text("no challenge templates found"))
+        for challenge in all_challenges:
+            chall_id = challenge.get("chall_id")
+            if chall_id is None:
+                continue
+            joined = chall_id in enrolled_ids
+            status = enrolled_statuses.get(chall_id)
+            reward_count = len(rewards_by_challenge.get(chall_id, []))
+            challenge_rewards = rewards_by_challenge.get(chall_id, [])
+            show_rewards = chall_id in self._expanded_reward_ids
+            status_badge = f" {_status_theme(status)['badge']}" if status else ""
+            action_row = [
+                ft.Column(
+                    [
+                        ft.Text(f"{challenge.get('chall_name', 'unnamed challenge')}{status_badge}", weight=ft.FontWeight.BOLD),
+                        ft.Text(
+                            f"{reward_count} reward{'s' if reward_count != 1 else ''}" + (f" | {challenge.get('chall_desc', '')[:50]}" if challenge.get("chall_desc") else ""),
+                            size=11,
+                            color=ft.Colors.OUTLINE,
+                        ),
+                    ],
+                    spacing=2,
+                    expand=True,
+                ),
+                ft.Button(
+                    "Joined" if joined else "Join",
+                    data=chall_id,
+                    on_click=self.join_challenge,
+                    disabled=joined,
+                ),
+            ]
+            card_border_color = _color("OUTLINE_VARIANT", ft.Colors.OUTLINE)
+            card_bg_color = _color("SURFACE_CONTAINER_LOW", _color("SURFACE", None))
+            if status:
+                theme = _status_theme(status)
+                card_border_color = theme["border_color"]
+                card_bg_color = theme["bg_color"]
+            challenge_card = ft.Column(
+                [
+                    ft.Row([r for r in action_row if r], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, wrap=True),
+                    ft.Text("challenge failed: rewards are locked", size=10, color=_color("ERROR", ft.Colors.RED)) if status == "failed" else ft.Container(),
+                    self._build_rewards_block(
+                        chall_id=chall_id,
+                        challenge_rewards=challenge_rewards,
+                        show_rewards=show_rewards,
+                        can_claim=joined and status != "failed",
+                        preview_only=not joined,
+                        joined=joined,
+                        status=status,
+                    ),
+                ],
+                spacing=6,
+            )
+            self.available_list.controls.append(
+                ft.Container(
+                    content=challenge_card,
+                    padding=10,
+                    border=ft.border.all(1, card_border_color),
+                    bgcolor=card_bg_color,
+                    border_radius=10,
+                )
+            )
+
+        self._apply_view_mode()
+        self._safe_update()
+
+    def _build_rewards_block(self, chall_id, challenge_rewards, show_rewards, can_claim, preview_only, joined, status):
         if not challenge_rewards:
             return ft.Container()
-        if not show_rewards:
-            return ft.Container()
 
-        reward_title = "reward preview" if preview_only else "rewards"
-        reward_rows: list[ft.Control] = [ft.Text(reward_title, size=12, weight=ft.FontWeight.BOLD)]
+        is_open = show_rewards
+        chevron = "▾" if is_open else "▸"
+        toggle_label = f"{chevron} rewards ({len(challenge_rewards)})"
+        reward_rows: list[ft.Control] = [
+            ft.TextButton(
+                toggle_label,
+                data=chall_id,
+                on_click=self.toggle_reward_preview,
+            )
+        ]
+
+        if not is_open:
+            return ft.Container(content=ft.Column(reward_rows, spacing=4), padding=ft.padding.only(left=2, top=2, bottom=2))
+
         for reward in challenge_rewards:
+            if preview_only:
+                claim_label = "join challenge first"
+                claim_disabled = True
+            elif status == "failed":
+                claim_label = "challenge failed"
+                claim_disabled = True
+            elif can_claim:
+                claim_label = "claim reward"
+                claim_disabled = reward.get("reward_id") is None
+            elif joined:
+                claim_label = "complete tasks first"
+                claim_disabled = True
+            else:
+                claim_label = "join challenge first"
+                claim_disabled = True
+
             reward_rows.append(
                 ft.Container(
                     content=ft.Row(
                         [
                             ft.Column(
                                 [
-                                    ft.Text(reward['reward_name'], weight=ft.FontWeight.BOLD, size=12),
-                                    ft.Text(f"type: {reward['reward_type']}", size=10, color=ft.Colors.OUTLINE),
+                                    ft.Text(reward.get('reward_name', 'unnamed reward'), weight=ft.FontWeight.BOLD, size=12),
+                                    ft.Text(f"type: {reward.get('reward_type', 'unknown')}", size=10, color=ft.Colors.OUTLINE),
                                 ],
                                 spacing=2,
                                 expand=True,
                             ),
                             ft.Button(
-                                "Claim" if can_claim else "Join to claim",
-                                data=reward["reward_id"],
+                                claim_label,
+                                data=reward.get("reward_id"),
                                 on_click=self.claim_reward,
-                                disabled=not can_claim,
+                                disabled=claim_disabled,
                             ),
                         ],
                         alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                     ),
                     padding=8,
+                    bgcolor=_color("SURFACE_VARIANT", _color("SURFACE", None)),
                     border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
                     border_radius=6,
                 )
             )
-        return ft.Container(content=ft.Column(reward_rows, spacing=6), padding=ft.padding.only(left=8, top=8, bottom=4))
+        return ft.Container(content=ft.Column(reward_rows, spacing=6), padding=ft.padding.only(left=2, top=2, bottom=2))
 
     async def toggle_reward_preview(self, e):
         chall_id = e.control.data
@@ -307,7 +418,7 @@ class ChallengesUI(ft.Column):
             self._expanded_reward_ids.remove(chall_id)
         else:
             self._expanded_reward_ids.add(chall_id)
-        await self.load_challenges()
+        self._render_from_cache()
 
     async def claim_reward(self, e):
         reward_id = e.control.data
@@ -325,6 +436,8 @@ class ChallengesUI(ft.Column):
                 self._send_feedback(f"unclaimed reward {reward_id}", ft.Colors.BLUE)
         except httpx.HTTPStatusError as err:
             detail = _http_error_detail(err)
+            if "complete all challenge tasks" in detail.lower():
+                detail = "complete required challenge tasks first (check Tasks screen), then claim this reward"
             self._send_feedback(f"couldn't claim reward: {detail}", ft.Colors.RED)
         except Exception as err:
             self._send_feedback(f"error claiming reward: {err}", ft.Colors.RED)
@@ -398,7 +511,10 @@ class RewardsChallengesScreen(ft.Column):
         """
         self.feedback.value = message
         self.feedback.color = color
-        self.update()
+        try:
+            self.update()
+        except Exception:
+            pass
 
     async def load_all_data(self):
         """Load both rewards and challenges."""
