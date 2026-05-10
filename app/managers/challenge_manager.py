@@ -1,5 +1,5 @@
 from datetime import date, timedelta
-from app.db.database_models import Challenges, UserChallenges, TaskChallenges, UserTask, Tasks, TaskType
+from app.db.database_models import Challenges, UserChallenges, TaskChallenges, UserTask, Tasks, TaskType, CustomTasks, Rewards, UserRewards
 
 
 class ChallengeManager:
@@ -39,23 +39,108 @@ class ChallengeManager:
         )
         return list(query)
 
-    def get_user_challenge_status(self, user_id, chall_id, chall_edate):
-        challenge_task_ids = [
-            link.task_id_id
-            for link in TaskChallenges.select().where(TaskChallenges.chall_id == chall_id)
-        ]
+    def get_required_task_progress(self, user_id, chall_id):
+        self._require_existing_challenge(chall_id)
 
-        if challenge_task_ids:
-            completed_task_ids = {
-                row.task_id_id
-                for row in UserTask.select(UserTask.task_id).where(
-                    (UserTask.user_id == user_id)
-                    & (UserTask.task_id.in_(challenge_task_ids))
-                    & (UserTask.task_complete == True)
-                )
+        required_rows = (
+            Tasks
+            .select(Tasks.task_id, Tasks.type_id)
+            .join(TaskChallenges, on=(TaskChallenges.task_id == Tasks.task_id))
+            .where(TaskChallenges.chall_id == chall_id)
+        )
+        required_ids = [row.task_id for row in required_rows]
+        required_type_counts = {}
+        for row in required_rows:
+            type_id = row.type_id_id
+            required_type_counts[type_id] = required_type_counts.get(type_id, 0) + 1
+        unique_required_ids = sorted(set(required_ids))
+
+        if not unique_required_ids:
+            return {
+                "required_total": 0,
+                "completed_total": 0,
+                "completed_task_ids": [],
+                "pending_task_ids": [],
+                "completion_ratio": 0.0,
             }
-            if len(completed_task_ids) >= len(set(challenge_task_ids)):
-                return "completed"
+
+        completed_required_task_ids = {
+            row.task_id_id
+            for row in UserTask.select(UserTask.task_id).where(
+                (UserTask.user_id == user_id)
+                & (UserTask.task_id.in_(unique_required_ids))
+                & (UserTask.task_complete == True)
+            )
+            if row.task_id_id is not None
+        }
+
+        # Progress is counted by required type so users can complete matching tasks
+        # without having to complete one exact hardcoded task ID.
+        completed_by_type = {}
+        required_type_ids = list(required_type_counts.keys())
+        if required_type_ids:
+            predefined_rows = (
+                UserTask
+                .select(UserTask.task_id, Tasks.type_id)
+                .join(Tasks, on=(UserTask.task_id == Tasks.task_id))
+                .where(
+                    (UserTask.user_id == user_id)
+                    & (UserTask.task_complete == True)
+                    & (UserTask.task_id.is_null(False))
+                    & (Tasks.type_id.in_(required_type_ids))
+                )
+            )
+            for row in predefined_rows:
+                type_id = row.task_id.type_id_id
+                completed_by_type[type_id] = completed_by_type.get(type_id, 0) + 1
+
+            custom_rows = (
+                UserTask
+                .select(UserTask.cust_id, CustomTasks.type_id)
+                .join(CustomTasks, on=(UserTask.cust_id == CustomTasks.cust_id))
+                .where(
+                    (UserTask.user_id == user_id)
+                    & (UserTask.task_complete == True)
+                    & (UserTask.cust_id.is_null(False))
+                    & (CustomTasks.type_id.in_(required_type_ids))
+                )
+            )
+            for row in custom_rows:
+                type_id = row.cust_id.type_id_id
+                completed_by_type[type_id] = completed_by_type.get(type_id, 0) + 1
+
+        required_total = len(unique_required_ids)
+        completed_total = 0
+        for type_id, needed in required_type_counts.items():
+            completed_total += min(needed, completed_by_type.get(type_id, 0))
+
+        completed_total = min(completed_total, required_total)
+        completed_sorted = sorted(completed_required_task_ids)
+        pending_sorted = [task_id for task_id in unique_required_ids if task_id not in completed_required_task_ids]
+
+        return {
+            "required_total": required_total,
+            "completed_total": completed_total,
+            "completed_task_ids": completed_sorted,
+            "pending_task_ids": pending_sorted,
+            "completion_ratio": (completed_total / required_total) if required_total else 0.0,
+        }
+
+    def get_user_challenge_status(self, user_id, chall_id, chall_edate):
+        # Once any reward for this challenge is awarded, keep status completed.
+        already_awarded = (
+            UserRewards
+            .select()
+            .join(Rewards, on=(UserRewards.reward_id == Rewards.reward_id))
+            .where((UserRewards.user_id == user_id) & (Rewards.chall_id == chall_id))
+            .exists()
+        )
+        if already_awarded:
+            return "completed"
+
+        progress = self.get_required_task_progress(user_id, chall_id)
+        if progress["required_total"] > 0 and progress["completed_total"] >= progress["required_total"]:
+            return "completed"
 
         if date.today() > chall_edate:
             return "failed"
