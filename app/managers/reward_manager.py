@@ -213,6 +213,32 @@ class RewardManager:
         )
         return list(query)
 
+    def award_challenge_rewards(self, user_id, challenge_id, status="Complete"):
+        """Awards all rewards for a challenge to the user if not already awarded.
+
+        Args:
+            user_id (int): User ID.
+            challenge_id (int): Challenge ID.
+            status (str): Stored reward status value.
+
+        Returns:
+            int: Number of newly awarded rewards.
+        """
+        self._require_existing_challenge(challenge_id)
+
+        rewards = Rewards.select().where(Rewards.chall_id == challenge_id)
+        awarded = 0
+        for reward in rewards:
+            existing = UserRewards.get_or_none(
+                (UserRewards.user_id == user_id) & (UserRewards.reward_id == reward.reward_id)
+            )
+            if existing is not None:
+                continue
+            UserRewards.create(user_id=user_id, reward_id=reward.reward_id, reward_status=status)
+            awarded += 1
+
+        return awarded
+
     def claim_reward(self, user_id, reward_id, status="Incomplete"):
         """Claims or unclaims a reward for a user.
 
