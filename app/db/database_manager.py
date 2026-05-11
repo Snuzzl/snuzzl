@@ -1,7 +1,7 @@
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
-from peewee import *
-from app.db.database_models import *
+from peewee import CompositeKey
+from app.db.database_models import dbmodel_list
 
 executor = ThreadPoolExecutor(max_workers=10)
 
