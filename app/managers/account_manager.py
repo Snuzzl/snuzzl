@@ -65,7 +65,6 @@ class AccountManager:
                     user_password=password
                 )
             self.assign_default_metrics(user.user_id)
-            self.assign_default_challenges(user.user_id)
             return {'success': True, 'user_id': user.user_id}
         except Exception as e:
             return {'success': False, 'message': f"Account creation failed: {e}"}

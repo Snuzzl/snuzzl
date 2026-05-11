@@ -2,6 +2,7 @@ import flet as ft
 import httpx
 import re
 import hashlib
+from typing import cast
 from app.config import API_ROOT
 
 
@@ -16,13 +17,13 @@ class MainScreen(ft.Column):
 
         self.back_button = ft.Button("Back", on_click=self.show_menu)
 
-        self.menu_controls = [
-            ft.Text("Welcome to Snuzzl!", size=25, weight='bold'),
+        self.menu_controls = cast(list[ft.Control], [
+            ft.Text("Welcome to Snuzzl!", size=25, weight=ft.FontWeight.BOLD),
             ft.Row([
                 ft.Button("Login", on_click=self.login),
                 ft.Button("Create Account", on_click=self.create_account)
-            ], alignment='center', spacing=20)
-        ]
+            ], alignment=ft.MainAxisAlignment.CENTER, spacing=20)
+        ])
 
     def show_menu(self, e=None):
         self.controls.clear()
@@ -67,8 +68,8 @@ class CreateAccount(ft.Column):
 
         self.error_message = ft.Text("", color='red')
 
-        self.controls = [
-            ft.Text("Enter Details", size=25, weight='bold'),
+        self.controls = cast(list[ft.Control], [
+            ft.Text("Enter Details", size=25, weight=ft.FontWeight.BOLD),
             self.username_field,
             self.fname_field,
             self.email_field,
@@ -78,9 +79,15 @@ class CreateAccount(ft.Column):
             ft.Row([
                 back_button,
                 ft.Button("Submit", on_click=self.submit),
-            ], alignment='center', spacing=20),
+            ], alignment=ft.MainAxisAlignment.CENTER, spacing=20),
             self.error_message
-        ]
+        ])
+
+    def _set_field_error(self, field: ft.TextField, message: str | None):
+        try:
+            setattr(field, "error_text", message)
+        except Exception:
+            pass
 
     def create_input(self, label_text, hint, password=False):
         return ft.TextField(
@@ -125,23 +132,23 @@ class CreateAccount(ft.Column):
         # Check all fields have a value
         for field, message in fields:
             if not field.value or not field.value.strip():
-                field.error_text = message
+                self._set_field_error(field, message)
                 self.error_message.value = "Please fill in all fields"
                 self.update()
                 return
             else:
-                field.error_text = None
+                self._set_field_error(field, None)
 
         # Match password fields
         if self.password_field.value != self.confirm_password_field.value:
-            self.confirm_password_field.error_text = "Passwords do not match"
+            self._set_field_error(self.confirm_password_field, "Passwords do not match")
             self.error_message.value = "Please ensure passwords match"
             self.update()
             return
 
         # Validate email
         if not self.is_valid_email(self.email_field.value):
-            self.email_field.error_text = "Invalid email format"
+            self._set_field_error(self.email_field, "Invalid email format")
             self.error_message.value = "Please enter a valid email address"
             self.update()
             return
@@ -191,16 +198,16 @@ class Login(ft.Column):
         self.password_field = self.create_input("Password", "Enter password", password=True)
         self.error_message = ft.Text("")
 
-        self.controls = [
-            ft.Text("Login", size=25, weight='bold'),
+        self.controls = cast(list[ft.Control], [
+            ft.Text("Login", size=25, weight=ft.FontWeight.BOLD),
             self.username_field,
             self.password_field,
             ft.Row([
                 back_button,
                 ft.Button("Submit", on_click=self.submit),
-            ], alignment='center', spacing=20),
+            ], alignment=ft.MainAxisAlignment.CENTER, spacing=20),
             self.error_message
-        ]
+        ])
 
     def create_input(self, label_text, hint, password=False):
         return ft.TextField(
@@ -216,9 +223,11 @@ class Login(ft.Column):
     async def submit(self, e=None):
         if self.username_field.value.strip() == "":
             self.error_message.value = "Missing Username"
+            self.update()
             return
         if self.password_field.value.strip() == "":
             self.error_message.value = "Missing Password"
+            self.update()
             return
 
         payload = {
@@ -241,4 +250,6 @@ class Login(ft.Column):
         except Exception as ex:
             self.error_message.value = f"Error: {ex}"
             self.update()
+
+
 

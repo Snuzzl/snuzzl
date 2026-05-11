@@ -15,4 +15,5 @@ def main(page: ft.Page):
     MainScreen(page, acc).show()
 
 
-ft.run(main)
+if __name__ == "__main__":
+    ft.run(main)
