@@ -143,6 +143,32 @@ class ChallengeJoin(BaseModel):
     chall_edate: str | None = None
 
 
+async def _award_rewards_after_completion(user_id: int):
+    """Award rewards for challenges that became completed and return newly earned reward names."""
+    before_rewards = await run_in_threadpool(reward_mgr.view_user_rewards, user_id)
+    before_ids = {reward.reward_id for reward in before_rewards}
+
+    challenge_rows = await run_in_threadpool(challenge_mgr.get_user_challenges, user_id)
+    for row in challenge_rows:
+        status = await run_in_threadpool(
+            challenge_mgr.get_user_challenge_status,
+            user_id,
+            row.chall_id.chall_id,
+            row.chall_edate,
+        )
+        if status == "completed":
+            await run_in_threadpool(
+                reward_mgr.award_challenge_rewards,
+                user_id,
+                row.chall_id.chall_id,
+                "Complete",
+            )
+
+    after_rewards = await run_in_threadpool(reward_mgr.view_user_rewards, user_id)
+    newly_awarded = [reward for reward in after_rewards if reward.reward_id not in before_ids]
+    return [reward.reward_name for reward in newly_awarded]
+
+
 @app.get("/tasks/{user_id}")
 async def get_tasks(user_id: int):
     tasks = await run_in_threadpool(task_mgr.get_tasks, user_id)
@@ -175,14 +201,21 @@ async def delete_task(user_id: int, cust_id: int):
 
 @app.put("/tasks/{user_id}/{cust_id}/complete")
 async def complete_task(user_id: int, cust_id: int):
-    await run_in_threadpool(task_mgr.mark_complete, user_id, cust_id)
-    return {"complete": True}
+    try:
+        await run_in_threadpool(task_mgr.mark_complete, user_id, cust_id)
+        rewards_awarded = await _award_rewards_after_completion(user_id)
+        return {"complete": True, "rewards_awarded": rewards_awarded}
+    except ValueError as err:
+        raise HTTPException(status_code=404, detail=str(err))
 
 
 @app.put("/tasks/{user_id}/{cust_id}/incomplete")
 async def incomplete_task(user_id: int, cust_id: int):
-    await run_in_threadpool(task_mgr.mark_incomplete, user_id, cust_id)
-    return {"complete": False}
+    try:
+        await run_in_threadpool(task_mgr.mark_incomplete, user_id, cust_id)
+        return {"complete": False}
+    except ValueError as err:
+        raise HTTPException(status_code=404, detail=str(err))
 
 
 @app.put("/tasks/{user_id}/{cust_id}")
@@ -197,11 +230,14 @@ async def update_task(user_id: int, cust_id: int, updates: TaskUpdate):
         elif field in {"task_date", "task_stime", "task_etime"}:
             schedule_fields[field] = value
 
-    if task_fields:
-        await run_in_threadpool(task_mgr.update_task, cust_id, **task_fields)
-    if schedule_fields:
-        await run_in_threadpool(task_mgr.update_schedule, user_id, cust_id, **schedule_fields)
-    return {"updated": True}
+    try:
+        if task_fields:
+            await run_in_threadpool(task_mgr.update_task, cust_id, **task_fields)
+        if schedule_fields:
+            await run_in_threadpool(task_mgr.update_schedule, user_id, cust_id, **schedule_fields)
+        return {"updated": True}
+    except ValueError as err:
+        raise HTTPException(status_code=404, detail=str(err))
 
 
 # ----- Predefined-task endpoints ----- #
@@ -243,22 +279,31 @@ async def update_predefined_schedule(user_id: int, usertask_id: int, updates: Pr
     for field, value in updates.model_dump(exclude_none=True).items():
         if field in {"task_date", "task_stime", "task_etime"}:
             schedule_fields[field] = value
-    if schedule_fields:
-        # For predefined tasks, the composite key is (user_id, task_id) where task_id = usertask_id.
-        await run_in_threadpool(task_mgr.update_schedule, user_id, usertask_id, **schedule_fields)
-    return {"updated": True}
+    try:
+        if schedule_fields:
+            await run_in_threadpool(task_mgr.update_schedule, user_id, usertask_id, **schedule_fields)
+        return {"updated": True}
+    except ValueError as err:
+        raise HTTPException(status_code=404, detail=str(err))
 
 
 @app.put("/tasks/{user_id}/predefined/{usertask_id}/complete")
 async def complete_predefined_task(user_id: int, usertask_id: int):
-    await run_in_threadpool(task_mgr.mark_complete, user_id, usertask_id)
-    return {"complete": True}
+    try:
+        await run_in_threadpool(task_mgr.mark_complete, user_id, usertask_id)
+        rewards_awarded = await _award_rewards_after_completion(user_id)
+        return {"complete": True, "rewards_awarded": rewards_awarded}
+    except ValueError as err:
+        raise HTTPException(status_code=404, detail=str(err))
 
 
 @app.put("/tasks/{user_id}/predefined/{usertask_id}/incomplete")
 async def incomplete_predefined_task(user_id: int, usertask_id: int):
-    await run_in_threadpool(task_mgr.mark_incomplete, user_id, usertask_id)
-    return {"complete": False}
+    try:
+        await run_in_threadpool(task_mgr.mark_incomplete, user_id, usertask_id)
+        return {"complete": False}
+    except ValueError as err:
+        raise HTTPException(status_code=404, detail=str(err))
 
 
 ##### Metrics endpoints
@@ -340,13 +385,41 @@ async def get_user_claimed_rewards(user_id: int):
 @app.post("/rewards/user/{user_id}/claim")
 async def claim_reward(user_id: int, claim: RewardClaim):
     try:
-        claimed = await run_in_threadpool(
-            reward_mgr.claim_reward,
+        reward = await run_in_threadpool(reward_mgr.get_reward, claim.reward_id)
+        if reward is None:
+            raise HTTPException(status_code=400, detail="reward_id does not exist")
+
+        enrollment = await run_in_threadpool(
+            db_manager.read_record,
+            UserChallenges,
             user_id,
-            claim.reward_id,
-            claim.status,
+            reward.chall_id_id,
         )
-        return {"claimed": claimed, "reward_id": claim.reward_id}
+        if enrollment is None:
+            raise HTTPException(status_code=400, detail="join this challenge before claiming its reward")
+
+        status = await run_in_threadpool(
+            challenge_mgr.get_user_challenge_status,
+            user_id,
+            reward.chall_id_id,
+            enrollment.chall_edate,
+        )
+        if status != "completed":
+            raise HTTPException(status_code=400, detail="complete challenge requirements before claiming this reward")
+
+        newly_awarded = await run_in_threadpool(
+            reward_mgr.award_challenge_rewards,
+            user_id,
+            reward.chall_id_id,
+            "Complete",
+        )
+        return {
+            "claimed": True,
+            "reward_id": claim.reward_id,
+            "already_claimed": newly_awarded == 0,
+        }
+    except HTTPException:
+        raise
     except ValueError as err:
         raise HTTPException(status_code=400, detail=str(err))
     except Exception as err:
@@ -370,6 +443,7 @@ async def get_challenges_catalog():
             "required_summary": required["summary"],
             "required_by_type": required["by_type"],
             "required_task_ids": required["task_ids"],
+            "requirement_kind": "tasks",
         })
     return result
 
@@ -422,6 +496,17 @@ async def get_user_challenges(user_id: int):
             challenge_mgr.get_required_task_summary,
             row.chall_id.chall_id,
         )
+        progress = await run_in_threadpool(
+            challenge_mgr.get_required_task_progress,
+            user_id,
+            row.chall_id.chall_id,
+        )
+        if status == "completed":
+            await run_in_threadpool(
+                reward_mgr.award_challenge_rewards,
+                user_id,
+                row.chall_id.chall_id,
+            )
         result.append({
             "chall_id": row.chall_id.chall_id,
             "chall_name": row.chall_id.chall_name,
@@ -433,6 +518,8 @@ async def get_user_challenges(user_id: int):
             "required_summary": required["summary"],
             "required_by_type": required["by_type"],
             "required_task_ids": required["task_ids"],
+            "required_progress": progress,
+            "requirement_kind": "tasks",
         })
     return result
 
@@ -449,12 +536,19 @@ async def get_required_challenge_tasks(user_id: int, chall_id: int):
             challenge_mgr.get_required_task_summary,
             chall_id,
         )
+        progress = await run_in_threadpool(
+            challenge_mgr.get_required_task_progress,
+            user_id,
+            chall_id,
+        )
         return {
             "chall_id": chall_id,
             "tasks": tasks,
             "required_count": required["count"],
             "required_summary": required["summary"],
             "required_by_type": required["by_type"],
+            "required_progress": progress,
+            "requirement_kind": "tasks",
         }
     except ValueError as err:
         raise HTTPException(status_code=400, detail=str(err))
@@ -481,7 +575,7 @@ async def remove_friend(user_id: int, friend_id: int):
 
 
 ##### Notification endpoints
-class FriendRequest(BaseModel):
+class NotificationFriendRequest(BaseModel):
     user_id: int
     friend_id: int
 
@@ -494,11 +588,11 @@ async def get_friends(user_id: int):
     return await run_in_threadpool(noti_mgr.get_friend_requests, user_id)
 
 @app.put("/notifications/accept_request")
-async def accept_request(payload: FriendRequest):
+async def accept_request(payload: NotificationFriendRequest):
     return await run_in_threadpool(noti_mgr.accept_request, payload.user_id, payload.friend_id)
 
 @app.post("/notifications/deny_request")
-async def deny_request(payload: FriendRequest):
+async def deny_request(payload: NotificationFriendRequest):
     return await run_in_threadpool(noti_mgr.deny_request, payload.user_id, payload.friend_id)
 
 @app.get("/notifications/invites/{user_id}")
