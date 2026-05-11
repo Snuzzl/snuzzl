@@ -20,6 +20,14 @@ def http_error_detail(err: httpx.HTTPStatusError) -> str:
 
 
 def group_rewards_by_challenge(rewards):
+    """Group reward records by challenge ID.
+
+    Args:
+        rewards (list[dict]): Reward payload records.
+
+    Returns:
+        dict[int, list[dict]]: Mapping of challenge ID to rewards.
+    """
     grouped = {}
     for reward in rewards:
         chall_id = reward.get("chall_id") if isinstance(reward, dict) else None
@@ -53,6 +61,14 @@ def friendly_date(value: str) -> str:
 
 
 def loading_placeholder(label: str):
+    """Build a simple loading row for asynchronous sections.
+
+    Args:
+        label (str): Placeholder label text.
+
+    Returns:
+        ft.Row: Loading row containing spinner and text.
+    """
     return ft.Row(
         [
             ft.ProgressRing(width=14, height=14, stroke_width=2),
@@ -63,6 +79,14 @@ def loading_placeholder(label: str):
 
 
 def status_theme(status: str):
+    """Return challenge status color tokens for card presentation.
+
+    Args:
+        status (str): Challenge status value.
+
+    Returns:
+        dict: Badge and color token mapping for UI rendering.
+    """
     muted_bg = color("SURFACE_VARIANT", color("SURFACE", None))
     muted_border = color("OUTLINE_VARIANT", ft.Colors.OUTLINE)
     muted_text = color("ON_SURFACE", ft.Colors.BLACK)

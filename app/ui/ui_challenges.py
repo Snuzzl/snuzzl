@@ -22,9 +22,16 @@ API_ROOT = os.getenv("SNUZZL_API_ROOT", "http://127.0.0.1:8000")
 
 
 class ChallengesUI(ft.Column):
-    """Displays challenges for a user."""
+    """Render challenge browsing, enrollment, and reward views for a user."""
 
     def __init__(self, user_id, feedback_callback=None, on_open_tasks=None):
+        """Initialize challenge screen state and controls.
+
+        Args:
+            user_id (int): Active user ID.
+            feedback_callback (Callable | None): Optional feedback handler.
+            on_open_tasks (Callable | None): Optional task-navigation callback.
+        """
         super().__init__()
         self.spacing = 8
         self.user_id = user_id
@@ -72,17 +79,29 @@ class ChallengesUI(ft.Column):
         ]
 
     def _send_feedback(self, message, color_value):
+        """Send status text to parent feedback handler.
+
+        Args:
+            message (str): Feedback message.
+            color_value: Flet color value.
+        """
         if callable(self.feedback_callback):
             self.feedback_callback(message, color_value)
 
 
     def _safe_update(self):
+        """Safely refresh control state without bubbling UI exceptions."""
         try:
             self.update()
         except Exception:
             pass
 
     def _is_dark_mode(self):
+        """Determine whether challenge UI should use dark color tokens.
+
+        Returns:
+            bool: True when dark mode should be used.
+        """
         try:
             if self.page is None:
                 return False
@@ -100,6 +119,11 @@ class ChallengesUI(ft.Column):
             return False
 
     def _theme_tokens(self):
+        """Return color tokens for current effective theme.
+
+        Returns:
+            dict[str, str]: Theme color token mapping.
+        """
         if self._is_dark_mode():
             return {
                 "panel_bg": "#111419",
@@ -119,6 +143,12 @@ class ChallengesUI(ft.Column):
         }
 
     def _run_task(self, coroutine_fn, *args):
+        """Run async work through page task scheduler when available.
+
+        Args:
+            coroutine_fn: Async callable.
+            *args: Positional args passed to coroutine callable.
+        """
         try:
             if self.page is not None:
                 run_task = getattr(self.page, "run_task", None)
@@ -128,12 +158,22 @@ class ChallengesUI(ft.Column):
             pass
 
     def _apply_view_mode(self):
+        """Apply selected tab mode to section visibility and button states."""
         self.your_section.visible = self._view_mode == "your"
         self.all_section.visible = self._view_mode == "all"
         self.your_btn.disabled = self._view_mode == "your"
         self.all_btn.disabled = self._view_mode == "all"
 
     def _make_container(self, content=None, **kwargs):
+        """Create a container with dynamic attribute assignment.
+
+        Args:
+            content: Optional container content.
+            **kwargs: Container attributes to set.
+
+        Returns:
+            ft.Container: Configured container.
+        """
         container = ft.Container()
         if content is not None:
             container.content = content
@@ -142,6 +182,15 @@ class ChallengesUI(ft.Column):
         return container
 
     def _make_row(self, controls=None, **kwargs):
+        """Create a row with dynamic attribute assignment.
+
+        Args:
+            controls (list[ft.Control] | None): Optional row controls.
+            **kwargs: Row attributes to set.
+
+        Returns:
+            ft.Row: Configured row.
+        """
         row = ft.Row()
         if controls is not None:
             row.controls = controls
@@ -150,6 +199,15 @@ class ChallengesUI(ft.Column):
         return row
 
     def _make_column(self, controls=None, **kwargs):
+        """Create a column with dynamic attribute assignment.
+
+        Args:
+            controls (list[ft.Control] | None): Optional column controls.
+            **kwargs: Column attributes to set.
+
+        Returns:
+            ft.Column: Configured column.
+        """
         column = ft.Column()
         if controls is not None:
             column.controls = controls
@@ -158,6 +216,15 @@ class ChallengesUI(ft.Column):
         return column
 
     def _task_hint_row(self, challenge, status):
+        """Build requirement progress hint text for a challenge card.
+
+        Args:
+            challenge (dict): Challenge payload.
+            status (str): Derived challenge status.
+
+        Returns:
+            ft.Row: Hint row control.
+        """
         progress = challenge.get("required_progress") or {}
         required_total = int(progress.get("required_total") or challenge.get("required_count") or 0)
         completed_total = int(progress.get("completed_total") or 0)
@@ -184,6 +251,16 @@ class ChallengesUI(ft.Column):
         )
 
     def _build_user_challenge_card(self, challenge, status, rewards_by_challenge):
+        """Build a card for an enrolled challenge.
+
+        Args:
+            challenge (dict): User enrolled challenge payload.
+            status (str): Challenge status string.
+            rewards_by_challenge (dict): Rewards grouped by challenge ID.
+
+        Returns:
+            ft.Container | None: Card control or None if invalid payload.
+        """
         chall_id = challenge.get("chall_id")
         if chall_id is None:
             return None
@@ -231,6 +308,17 @@ class ChallengesUI(ft.Column):
         return self._make_container(body, padding=10, border=ft.border.all(1, tokens["card_border"]), bgcolor=tokens["card_bg"], border_radius=10)
 
     def _build_catalog_challenge_card(self, challenge, joined, status, rewards_by_challenge):
+        """Build a card for challenge catalog view.
+
+        Args:
+            challenge (dict): Catalog challenge payload.
+            joined (bool): Whether user is already enrolled.
+            status (str | None): Current user status for this challenge.
+            rewards_by_challenge (dict): Rewards grouped by challenge ID.
+
+        Returns:
+            ft.Container | None: Card control or None if invalid payload.
+        """
         chall_id = challenge.get("chall_id")
         if chall_id is None:
             return None
@@ -270,14 +358,25 @@ class ChallengesUI(ft.Column):
         return self._make_container(body, bgcolor=card_bg, border=ft.border.all(1, card_border), border_radius=6, padding=8, margin=ft.margin.only(bottom=6))
 
     def show_your_challenges(self, e):
+        """Switch to enrolled challenges view.
+
+        Args:
+            e: Optional Flet event.
+        """
         self._view_mode = "your"
         self._render_from_cache()
 
     def show_all_challenges(self, e):
+        """Switch to all-challenges catalog view.
+
+        Args:
+            e: Optional Flet event.
+        """
         self._view_mode = "all"
         self._render_from_cache()
 
     async def load_challenges(self):
+        """Load user challenges, catalog challenges, and rewards from API."""
         self.challenges_list.controls = [loading_placeholder("loading your challenges")]
         self.available_list.controls = [loading_placeholder("loading challenge catalog")]
         self._safe_update()
@@ -340,6 +439,7 @@ class ChallengesUI(ft.Column):
             self._send_feedback(f"partial load warning: {', '.join(warnings)}", ft.Colors.RED)
 
     def _render_from_cache(self):
+        """Render current challenge UI from cached API payloads."""
         user_challenges = self._user_challenges
         all_challenges = self._all_challenges
         rewards_by_challenge = self._rewards_by_challenge
@@ -383,6 +483,11 @@ class ChallengesUI(ft.Column):
             failed_count = len(failed_challenges)
             
             def toggle_expired(e):
+                """Toggle visibility of expired challenge cards.
+
+                Args:
+                    e: Optional Flet event.
+                """
                 self._show_expired = not self._show_expired
                 self._render_from_cache()
             
@@ -440,6 +545,20 @@ class ChallengesUI(ft.Column):
         self._safe_update()
 
     def _build_rewards_block(self, chall_id, challenge_rewards, show_rewards, can_claim, preview_only, joined, status):
+        """Build reward preview/claim block for a challenge card.
+
+        Args:
+            chall_id (int): Challenge ID.
+            challenge_rewards (list[dict]): Reward payloads for challenge.
+            show_rewards (bool): Whether reward list is expanded.
+            can_claim (bool): Whether rewards can be claimed.
+            preview_only (bool): Whether to disable claim interactions.
+            joined (bool): Whether user has joined challenge.
+            status (str): Challenge status string.
+
+        Returns:
+            ft.Container: Reward block container.
+        """
         if not challenge_rewards:
             return self._make_container()
 
@@ -532,6 +651,11 @@ class ChallengesUI(ft.Column):
         return self._make_container(self._make_column(reward_rows, spacing=6), padding=ft.padding.only(left=6, top=4, bottom=4))
 
     async def toggle_reward_preview_for_challenge(self, chall_id):
+        """Toggle expanded/collapsed reward block for a challenge.
+
+        Args:
+            chall_id (int): Challenge ID.
+        """
         if chall_id in self._expanded_reward_ids:
             self._expanded_reward_ids.remove(chall_id)
         else:
@@ -539,6 +663,11 @@ class ChallengesUI(ft.Column):
         self._render_from_cache()
 
     async def open_tasks_for_challenge_id(self, chall_id):
+        """Open task screen for challenge context when callback exists.
+
+        Args:
+            chall_id (int): Challenge ID.
+        """
         if callable(self.on_open_tasks):
             result = self.on_open_tasks(chall_id=chall_id)
             if inspect.isawaitable(result):
@@ -547,6 +676,11 @@ class ChallengesUI(ft.Column):
         self._send_feedback("open Task Manager to complete required challenge tasks", ft.Colors.BLUE)
 
     async def claim_reward_by_id(self, reward_id):
+        """Request reward claim for the active user.
+
+        Args:
+            reward_id (int): Reward ID.
+        """
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.post(f"{API_ROOT}/rewards/user/{self.user_id}/claim", json={"reward_id": reward_id})
@@ -566,6 +700,11 @@ class ChallengesUI(ft.Column):
         await self.load_challenges()
 
     async def join_challenge_by_id(self, chall_id):
+        """Join a challenge and refresh cached data.
+
+        Args:
+            chall_id (int): Challenge ID.
+        """
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.post(f"{API_ROOT}/challenges/{self.user_id}/join", json={"chall_id": chall_id})
@@ -578,6 +717,11 @@ class ChallengesUI(ft.Column):
         await self.load_challenges()
 
     async def leave_challenge_by_id(self, chall_id):
+        """Leave a challenge and refresh cached data.
+
+        Args:
+            chall_id (int): Challenge ID.
+        """
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.delete(f"{API_ROOT}/challenges/{self.user_id}/{chall_id}")
@@ -590,12 +734,27 @@ class ChallengesUI(ft.Column):
         await self.load_challenges()
 
     async def join_challenge(self, e):
+        """Event wrapper to join challenge by button-bound ID.
+
+        Args:
+            e: Flet event containing challenge ID in control data.
+        """
         await self.join_challenge_by_id(e.control.data)
 
     async def leave_challenge(self, e):
+        """Event wrapper to leave challenge by button-bound ID.
+
+        Args:
+            e: Flet event containing challenge ID in control data.
+        """
         await self.leave_challenge_by_id(e.control.data)
 
     async def claim_reward(self, e):
+        """Event wrapper to claim reward by button-bound ID.
+
+        Args:
+            e: Flet event containing reward ID in control data.
+        """
         await self.claim_reward_by_id(e.control.data)
 
 
@@ -603,6 +762,13 @@ class RewardsChallengesScreen(ft.Column):
     """Combined screen for displaying both rewards and challenges."""
 
     def __init__(self, user_id, on_back, on_open_tasks=None):
+        """Initialize combined rewards/challenges screen.
+
+        Args:
+            user_id (int): Active user ID.
+            on_back (Callable): Callback for back navigation.
+            on_open_tasks (Callable | None): Optional callback to open task UI.
+        """
         super().__init__()
         self.user_id = user_id
         self.feedback = ft.Text("", color=ft.Colors.RED)
@@ -621,6 +787,12 @@ class RewardsChallengesScreen(ft.Column):
         ]
 
     def update_feedback(self, message, color_value):
+        """Update on-screen feedback text.
+
+        Args:
+            message (str): Feedback message.
+            color_value: Flet color value.
+        """
         self.feedback.value = message
         self.feedback.color = color_value
         try:
@@ -629,10 +801,16 @@ class RewardsChallengesScreen(ft.Column):
             pass
 
     async def load_all_data(self):
+        """Load initial challenge and reward data for screen."""
         await self.challenges_ui.load_challenges()
 
 
 def main(page: ft.Page):
+    """Run local standalone Challenges/Rewards screen.
+
+    Args:
+        page (ft.Page): Flet page instance.
+    """
     page.title = "Snuzzl App"
     page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
     page.scroll = ft.ScrollMode.ADAPTIVE
@@ -640,6 +818,11 @@ def main(page: ft.Page):
     user_id = int(os.getenv("SNUZZL_USER_ID", "1"))
 
     def go_back(e):
+        """Handle back action in standalone preview mode.
+
+        Args:
+            e: Optional Flet event.
+        """
         page.clean()
         page.add(ft.Text("Back button pressed."))
 

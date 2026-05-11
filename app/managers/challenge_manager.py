@@ -3,15 +3,42 @@ from app.db.database_models import Challenges, UserChallenges, TaskChallenges, U
 
 
 class ChallengeManager:
+    """Manage challenge enrollment, status, and required task progress."""
+
     def __init__(self, db=None):
+        """Initialize challenge manager.
+
+        Args:
+            db: Database manager used for CRUD operations.
+        """
         self._db = db
 
     def _require_db(self):
+        """Return configured database manager.
+
+        Returns:
+            object: Database manager instance.
+
+        Raises:
+            RuntimeError: If database manager is not configured.
+        """
         if self._db is None:
             raise RuntimeError("Database manager is not configured")
         return self._db
 
     def _parse_date(self, value, field_name):
+        """Parse a date value from string or date instance.
+
+        Args:
+            value (str | date | None): Incoming date value.
+            field_name (str): Field name used in validation messages.
+
+        Returns:
+            date | None: Parsed date value.
+
+        Raises:
+            ValueError: If input cannot be parsed as YYYY-MM-DD.
+        """
         if value is None:
             return None
         if isinstance(value, date):
@@ -24,13 +51,34 @@ class ChallengeManager:
         raise ValueError(f"{field_name} must be YYYY-MM-DD")
 
     def _require_existing_challenge(self, chall_id):
+        """Ensure challenge ID exists.
+
+        Args:
+            chall_id (int): Challenge ID.
+
+        Raises:
+            ValueError: If challenge does not exist.
+        """
         if self._require_db().read_record(Challenges, chall_id) is None:
             raise ValueError("chall_id does not exist")
 
     def get_all_challenges(self):
+        """Fetch all available challenges.
+
+        Returns:
+            list: Challenge model records.
+        """
         return list(Challenges.select())
 
     def get_user_challenges(self, user_id):
+        """Fetch challenge enrollments for a user.
+
+        Args:
+            user_id (int): User ID.
+
+        Returns:
+            list: UserChallenges rows joined with challenge records.
+        """
         query = (
             UserChallenges
             .select(UserChallenges, Challenges)
@@ -40,6 +88,19 @@ class ChallengeManager:
         return list(query)
 
     def get_required_task_progress(self, user_id, chall_id):
+        """Calculate progress against a challenge's required tasks.
+
+        Progress is measured by required task type counts, so matching tasks
+        in the same categories count toward completion.
+
+        Args:
+            user_id (int): User ID.
+            chall_id (int): Challenge ID.
+
+        Returns:
+            dict: Progress details including required/completed totals,
+                completed IDs, pending IDs, and completion ratio.
+        """
         self._require_existing_challenge(chall_id)
 
         required_rows = (
@@ -127,6 +188,16 @@ class ChallengeManager:
         }
 
     def get_user_challenge_status(self, user_id, chall_id, chall_edate):
+        """Resolve user challenge status as active, completed, or failed.
+
+        Args:
+            user_id (int): User ID.
+            chall_id (int): Challenge ID.
+            chall_edate (date): Enrollment challenge end date.
+
+        Returns:
+            str: One of "completed", "failed", or "active".
+        """
         # Once any reward for this challenge is awarded, keep status completed.
         already_awarded = (
             UserRewards
@@ -147,6 +218,21 @@ class ChallengeManager:
         return "active"
 
     def join_challenge(self, user_id, chall_id, chall_sdate=None, chall_edate=None):
+        """Enroll a user in a challenge.
+
+        Args:
+            user_id (int): User ID.
+            chall_id (int): Challenge ID.
+            chall_sdate (str | date | None): Optional start date.
+            chall_edate (str | date | None): Optional end date.
+
+        Returns:
+            object: Created UserChallenges row.
+
+        Raises:
+            ValueError: If challenge does not exist, user is already enrolled,
+                or date range is invalid.
+        """
         db = self._require_db()
         self._require_existing_challenge(chall_id)
 
@@ -169,6 +255,18 @@ class ChallengeManager:
         )
 
     def leave_challenge(self, user_id, chall_id):
+        """Remove a user's enrollment from a challenge.
+
+        Args:
+            user_id (int): User ID.
+            chall_id (int): Challenge ID.
+
+        Returns:
+            bool: True when unenrollment succeeds.
+
+        Raises:
+            ValueError: If user is not enrolled in challenge.
+        """
         db = self._require_db()
         existing = db.read_record(UserChallenges, user_id, chall_id)
         if existing is None:
@@ -177,6 +275,15 @@ class ChallengeManager:
         return True
 
     def get_required_task_summary(self, chall_id):
+        """Build a summary of required tasks for a challenge.
+
+        Args:
+            chall_id (int): Challenge ID.
+
+        Returns:
+            dict: Required task count, summary string, type counts,
+                and required task identifiers/names.
+        """
         self._require_existing_challenge(chall_id)
         task_rows = (
             Tasks
@@ -220,6 +327,16 @@ class ChallengeManager:
         }
 
     def get_required_tasks_for_user(self, user_id, chall_id):
+        """Return required tasks and user assignment/completion state.
+
+        Args:
+            user_id (int): User ID.
+            chall_id (int): Challenge ID.
+
+        Returns:
+            list[dict]: Required task records annotated with assigned and
+                completed flags for the user.
+        """
         self._require_existing_challenge(chall_id)
 
         required_ids = [
