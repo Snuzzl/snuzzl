@@ -5,14 +5,13 @@ Learn more in the [Technical Docs](../technical-docs/index.md) about how these f
 
 ## Features
 - [Tasks](tasks.md)
-- [Routines](tasks.md#routines)
 - [Metrics](metrics.md)
 - [Wellbeing Score](metrics.md#wellbeing-score)
 - [Challenges](challenges-rewards.md)
 - [Rewards](challenges-rewards.md#rewards)
-- [Friends](friends.md)
 - [Competitions](competitions.md)
 
 ## Supporting Features
 - [Accounts](accounts.md)
+- [Social](social.md)
 - [Notifications](notifications.md)

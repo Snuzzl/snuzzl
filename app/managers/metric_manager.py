@@ -15,7 +15,7 @@ class MetricManager:
         """Initializes the MetricManager with a database instance.
 
         Args:
-            db: Database interface used to access models and perform queries.
+            db: Database manager instance containing models and CRUD methods.
         """
         self._db = db
         self.metrics_table = self._db.models["Metrics"]

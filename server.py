@@ -38,52 +38,148 @@ app = FastAPI(lifespan=lifespan)
 
 ##### Account endpoints
 class Login(BaseModel):
+    """Model representing login credentials.
+
+    Attributes:
+        username (str): The user's username.
+        password (str): The user's password.
+    """
     username: str
     password: str
 
+
 class Account(BaseModel):
+    """Model representing a user account.
+
+    Attributes:
+        username (str): The account username.
+        password (str): The account password.
+        fname (str): The user's first name.
+        email (str): The user's email address.
+        dob (str): The user's date of birth.
+    """
     username: str 
     password: str 
     fname: str 
     email: str 
     dob: str 
 
+
 class AccountUpdate(BaseModel):
+    """Model representing updatable account fields.
+
+    Attributes:
+        user_id (int): The ID of the user to update.
+        username (Optional[str]): New username, if updating.
+        email (Optional[str]): New email address, if updating.
+        password (Optional[str]): New password, if updating.
+    """
     user_id: int
     username: str | None = None
     email: str | None = None
     password: str | None = None
 
+
 @app.post("/login")
 async def login(payload: Login):
+    """Authenticate a user.
+
+    Args:
+        payload (Login): Login credentials containing username and password.
+
+    Returns:
+        Any: Result of the authentication process.
+    """
     return await run_in_threadpool(acc_mgr.login, payload.username, payload.password)
+
 
 @app.post("/create_account")
 async def create_account(payload: Account):
-    return await run_in_threadpool(acc_mgr.create_account, payload.username, payload.password, payload.fname, payload.email, payload.dob)
+    """Create a new user account.
+
+    Args:
+        payload (Account): Account details required for creation.
+
+    Returns:
+        Any: Result of account creation.
+    """
+    return await run_in_threadpool(
+        acc_mgr.create_account,
+        payload.username,
+        payload.password,
+        payload.fname,
+        payload.email,
+        payload.dob
+    )
+
 
 @app.get("/account/{user_id}")
 async def account_info(user_id: int):
+    """Retrieve account information for a given user.
+
+    Args:
+        user_id (int): The ID of the user.
+
+    Returns:
+        dict: Account information if found, otherwise an error message.
+    """
     account = await run_in_threadpool(acc_mgr.user_info, user_id=user_id)
     if account:
         return account
     return {'success': False, 'message': "Failed to retrieve account information"}
 
+
 @app.post("/account/change_username")
 async def change_username(payload: AccountUpdate):
+    """Update a user's username.
+
+    Args:
+        payload (AccountUpdate): Contains user ID and new username.
+
+    Returns:
+        Any: Result of the update operation.
+    """
     return await run_in_threadpool(acc_mgr.update_username, payload.user_id, payload.username)
+
 
 @app.post("/account/change_email")
 async def change_email(payload: AccountUpdate):
+    """Update a user's email address.
+
+    Args:
+        payload (AccountUpdate): Contains user ID and new email.
+
+    Returns:
+        Any: Result of the update operation.
+    """
     return await run_in_threadpool(acc_mgr.update_email, payload.user_id, payload.email)
+
 
 @app.post("/account/change_password")
 async def change_password(payload: AccountUpdate):
+    """Update a user's password.
+
+    Args:
+        payload (AccountUpdate): Contains user ID and new password.
+
+    Returns:
+        Any: Result of the update operation.
+    """
     return await run_in_threadpool(acc_mgr.update_password, payload.user_id, payload.password)
+
 
 @app.get("/account/{user_id}/delete")
 async def delete_account(user_id: int):
+    """Delete a user account.
+
+    Args:
+        user_id (int): The ID of the user to delete.
+
+    Returns:
+        Any: Result of the deletion operation.
+    """
     return await run_in_threadpool(acc_mgr.delete_account, user_id)
+
 
 ##### Task endpoints
 # Request body schemas for endpoints that need structured input.
@@ -347,7 +443,7 @@ async def incomplete_predefined_task(user_id: int, usertask_id: int):
 ##### Metrics endpoints
 class MetricUpdate(BaseModel):
     """
-    Schema for updating a metric value.
+    Model for updating a metric value.
 
     Attributes:
         value (int | None): The new metric value to set. If None,
@@ -673,25 +769,64 @@ async def get_required_challenge_tasks(user_id: int, chall_id: int):
 
 ##### Social endpoints
 class FriendRequest(BaseModel):
+    """
+    Model for adding a friend.
+
+    Attributes:
+        user_id (int): ID of the requesting user.
+        username_or_id (int | str): Target friend identifier (user ID or username).
+    """
     user_id: int
     username_or_id: int | str
 
+
 @app.get("/friends/{user_id}")
 async def get_user_friends(user_id: int):
+    """
+    Retrieve a list of friends for a given user.
+
+    Args:
+        user_id (int): ID of the user whose friends are being requested.
+
+    Returns:
+        Any: Result from the social manager containing the user's friends list.
+    """
     return await run_in_threadpool(social_mgr.view_friends, user_id)
+
 
 @app.post("/friends/add")
 async def add_friend(payload: FriendRequest):
+    """
+    Add a friend for a user.
+
+    Args:
+        payload (FriendRequest): Request body containing the user ID and the
+            friend identifier (username or ID).
+
+    Returns:
+        Any: Result from the social manager after attempting to add the friend.
+    """
     return await run_in_threadpool(social_mgr.add_friend, payload.user_id, payload.username_or_id)
+
 
 @app.delete("/friends/remove/{user_id}/{friend_id}")
 async def remove_friend(user_id: int, friend_id: int):
+    """
+    Remove a friend from a user's friend list.
+
+    Args:
+        user_id (int): ID of the user removing the friend.
+        friend_id (int): ID of the friend to be removed.
+
+    Returns:
+        Any: Result from the social manager after attempting to remove the friend.
+    """
     return await run_in_threadpool(social_mgr.remove_friend, user_id, friend_id)
 
 
 ##### Notification endpoints
 class NotificationFriendRequest(BaseModel):
-    """Schema for friend-request notification actions.
+    """Model for friend-request notification actions.
 
     Attributes:
         user_id (int): Acting user ID.
@@ -702,11 +837,25 @@ class NotificationFriendRequest(BaseModel):
     friend_id: int
 
 class CompInvite(BaseModel):
+    """Model for competition invitation actions.
+
+    Attributes:
+        user_id (int): ID of the user performing the action.
+        comp_id (int): ID of the competition invite.
+    """
     user_id: int
     comp_id: int
 
 @app.get("/notifications/friends/{user_id}")
 async def get_friends(user_id: int):
+    """Retrieve friend requests for a user.
+
+    Args:
+        user_id (int): User ID.
+
+    Returns:
+        Any: Manager response payload.
+    """
     return await run_in_threadpool(noti_mgr.get_friend_requests, user_id)
 
 @app.put("/notifications/accept_request")
@@ -735,16 +884,48 @@ async def deny_request(payload: NotificationFriendRequest):
 
 @app.get("/notifications/invites/{user_id}")
 async def get_invites(user_id: int):
+    """Retrieve competition invites for a user.
+
+    Args:
+        user_id (int): User ID.
+
+    Returns:
+        Any: Manager response payload.
+    """
     return await run_in_threadpool(noti_mgr.get_competition_invites, user_id)
 
 @app.put("/notifications/accept_invite")
 async def accept_invite(payload: CompInvite):
+    """Accept a competition invite.
+
+    Args:
+        payload (CompInvite): Competition invite payload.
+
+    Returns:
+        Any: Manager response payload.
+    """
     return await run_in_threadpool(noti_mgr.accept_invite, payload.user_id, payload.comp_id)
 
 @app.post("/notifications/deny_invite")
 async def deny_invite(payload: CompInvite):
+    """Deny a competition invite.
+
+    Args:
+        payload (CompInvite): Competition invite payload.
+
+    Returns:
+        Any: Manager response payload.
+    """
     return await run_in_threadpool(noti_mgr.deny_invite, payload.user_id, payload.comp_id)
 
 @app.get("/notifications/deadlines/{user_id}")
 async def get_deadlines(user_id: int):
+    """Retrieve competition deadlines for a user.
+
+    Args:
+        user_id (int): User ID.
+
+    Returns:
+        Any: Manager response payload.
+    """
     return await run_in_threadpool(noti_mgr.get_competition_deadlines, user_id)

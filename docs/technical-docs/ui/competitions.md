@@ -1,1 +1,3 @@
 # Competitions
+
+Currently not implemented.

@@ -1,10 +1,12 @@
 from datetime import date
 
-
 class NotificationManager:
     def __init__(self, db):
         """Handles retrieval of notifications such as friend requests,
         competition invites, and competition deadlines.
+        
+        Args:
+            db: Database manager instance containing models and CRUD methods.
         """
         # database manager import
         self._db = db
@@ -123,6 +125,18 @@ class NotificationManager:
             return None
         
     def accept_request(self, user_id, friend_id):
+        """Accept a pending friend request between two users.
+
+        Updates the friendship status for both users to ``"Friends"``
+        if a pending request exists.
+
+        Args:
+            user_id: The ID of the user accepting the request.
+            friend_id: The ID of the user who sent the friend request.
+
+        Returns:
+            dict: A response dictionary indicating success or failure.
+        """
         existing = self.friends_table.get_or_none((self.friends_table.user_id == user_id) & (self.friends_table.friend_id == friend_id))
         if existing:
             self._db.update_record(self.friends_table, (user_id, friend_id), friend_status="Friends")
@@ -131,6 +145,17 @@ class NotificationManager:
         return {'success': False, 'error': "Friend request doesn't exist"}
 
     def deny_request(self, user_id, friend_id):
+        """Deny and remove a pending friend request.
+
+        Deletes the friendship records for both users if the request exists.
+
+        Args:
+            user_id: The ID of the user denying the request.
+            friend_id: The ID of the user who sent the friend request.
+
+        Returns:
+            dict: A response dictionary indicating success or failure.
+        """
         existing = self.friends_table.get_or_none((self.friends_table.user_id == user_id) & (self.friends_table.friend_id == friend_id))
         if existing:
             self._db.delete_record(self.friends_table, (user_id, friend_id))
@@ -139,6 +164,17 @@ class NotificationManager:
         return {'success': False, 'error': "Friend request doesn't exist"}
 
     def accept_invite(self, user_id, comp_id):
+        """Accept a competition invitation.
+
+        Updates the participant status to ``"In Comp"`` if the invitation exists.
+
+        Args:
+            user_id: The ID of the user accepting the invite.
+            comp_id: The ID of the competition.
+
+        Returns:
+            dict: A response dictionary indicating success or failure.
+        """
         existing = self.comp_participant_table.get_or_none((self.comp_participant_table.user_id == user_id) & (self.comp_participant_table.comp_id == comp_id))
         if existing:
             self._db.update_record(self.comp_participant_table, (user_id, comp_id), comp_status="In Comp")
@@ -146,6 +182,17 @@ class NotificationManager:
         return {'success': False, 'error': "Competition invite doesn't exist"}
 
     def deny_invite(self, user_id, comp_id):
+        """Deny and remove a competition invitation.
+
+        Deletes the competition participant record if the invitation exists.
+
+        Args:
+            user_id: The ID of the user denying the invite.
+            comp_id: The ID of the competition.
+
+        Returns:
+            dict: A response dictionary indicating success or failure.
+        """
         existing = self.comp_participant_table.get_or_none((self.comp_participant_table.user_id == user_id) & (self.comp_participant_table.comp_id == comp_id))
         if existing:
             self._db.delete_record(self.comp_participant_table, (user_id, comp_id))
