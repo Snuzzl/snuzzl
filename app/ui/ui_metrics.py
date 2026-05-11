@@ -262,6 +262,7 @@ class MetricManagerApp(ft.Column):
                 self.metric_list.controls.append(MetricItem(metric_data, self.user_id))
                 wellbeing_score += metric_data["metric_value"]
             self.wellbeing_score.value = f"Wellbeing Score: {wellbeing_score}"
+            self.error_message.value = ""
             self.update()
         except Exception as ex:
             self.error_message.value = f"Server error: {ex}"
