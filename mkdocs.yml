@@ -25,10 +25,10 @@ nav:
       - Tasks: features/tasks.md
       - Metrics: features/metrics.md
       - Challenges: features/challenges-rewards.md
-      - Friends: features/friends.md
       - Competitions: features/competitions.md
       - Supporting Features:
         - Accounts: features/accounts.md
+        - Social: features/social.md
         - Notifications: features/notifications.md
     - Technical Docs:
       - Overview: technical-docs/index.md
@@ -36,7 +36,7 @@ nav:
         - Tasks: technical-docs/managers/tasks.md
         - Metrics: technical-docs/managers/metrics.md
         - Challenges & Rewards: technical-docs/managers/challenges-rewards.md
-        - Friends: technical-docs/managers/friends.md
+        - Social: technical-docs/managers/social.md
         - Competitions: technical-docs/managers/competitions.md
         - Accounts: technical-docs/managers/accounts.md
         - Notifications: technical-docs/managers/notifications.md
@@ -45,7 +45,7 @@ nav:
         - Metrics: technical-docs/ui/metrics.md
         - Challenges: technical-docs/ui/challenges.md
         - Rewards: technical-docs/ui/rewards.md
-        - Friends: technical-docs/ui/friends.md
+        - Social: technical-docs/ui/social.md
         - Competitions: technical-docs/ui/competitions.md
         - Accounts: technical-docs/ui/accounts.md
         - Notifications: technical-docs/ui/notifications.md
@@ -54,8 +54,8 @@ nav:
       - Tasks: api/tasks.md
       - Metrics: api/metrics.md
       - Challenges: api/challenges-rewards.md
-      - Friends: api/friends.md
       - Competitions: api/competitions.md
       - Supporting Features:
         - Accounts: api/accounts.md
+        - Social: api/social.md
         - Notifications: api/notifications.md

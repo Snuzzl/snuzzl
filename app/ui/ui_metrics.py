@@ -13,7 +13,19 @@ class MetricItem(ft.Column):
 
     Attributes:
         metric_data (dict): Dictionary containing metric metadata and values.
+        system_metrics (list[str]): List of metrics that cannot be manually updated.
         user_id (str | int): Identifier for the current user.
+        title (ft.Text): Text control displaying the metric name.
+        value_text (ft.Text): Text control displaying the current metric value.
+        view_btn (ft.Button): Button used to toggle metric information visibility.
+        update_btn (ft.Button): Button used to open the metric edit interface.
+        info_section (ft.Column): Section displaying metric metadata and details.
+        value_field (ft.TextField): Input field for entering a new metric value.
+        save_btn (ft.Button): Button used to submit metric updates.
+        cancel_btn (ft.Button): Button used to cancel metric editing.
+        error_message (ft.Text): Text control for displaying validation or server errors.
+        edit_section (ft.Column): Section containing metric editing controls.
+        controls (list): Ordered list of UI controls displayed in the component.
     """
 
     def __init__(self, metric_data, user_id):
@@ -165,6 +177,17 @@ class MetricManagerApp(ft.Column):
 
     Handles loading metrics from the backend, week navigation, and
     aggregation of wellbeing scores.
+    
+    Attributes:
+        user_id (str | int): Identifier for the current user.
+        current_date (datetime.date): Start date of the currently displayed week.
+        metric_list (ft.Column): Container holding rendered MetricItem components.
+        error_message (ft.Text): Text control for displaying loading or server errors.
+        wellbeing_score (ft.Text): Text control displaying the aggregated wellbeing score.
+        current_date_text (ft.Text): Text control displaying the active date range.
+        back_button (ft.Button): Button used to navigate to the previous week.
+        forward_button (ft.Button): Button used to navigate to the next week.
+        controls (list): Ordered list of UI controls displayed in the application layout.
     """
 
     def __init__(self, user_id):

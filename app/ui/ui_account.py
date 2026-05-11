@@ -5,7 +5,29 @@ import hashlib
 from app.config import API_ROOT
 
 class Summary(ft.Column):
+    """Displays and manages the user's account summary page.
+
+    Attributes:
+        id: Object containing the current user's ID.
+        _page: Active Flet page instance.
+        on_logout: Callback executed when the user logs out.
+        username: Cached username used for validation.
+        email: Cached email used for validation.
+        password: Cached hashed password used for validation.
+        _page_title: Title displayed at the top of the page.
+        back_button: Button used to return to the account summary view.
+        error_message: Text component used for displaying errors.
+        confirm_dialog: Confirmation dialog shown before account deletion.
+        delete_button: Button used to initiate account deletion.
+    """
     def __init__(self, id, page, on_logout):
+        """Initializes the account summary view.
+
+        Args:
+            id: Object containing the current user's ID.
+            page: The active Flet page instance.
+            on_logout: Callback executed when the user logs out.
+        """
         super().__init__(horizontal_alignment=ft.CrossAxisAlignment.CENTER)
         self.id = id
         self._page = page
@@ -40,6 +62,11 @@ class Summary(ft.Column):
         ]
 
     async def load_account(self, e=None):
+        """Fetches and displays the user's account information.
+
+        Args:
+            e: Optional Flet event object.
+        """
         try:
             async with httpx.AsyncClient() as client:
                 result = await client.get(f"{API_ROOT}/account/{self.id.user_id}")
@@ -77,25 +104,38 @@ class Summary(ft.Column):
             self.update()
 
     def load_username_change(self):
+        """Loads the username change form."""
         self.controls.clear()
         self.controls.extend([UsernameChange(self.id.user_id, self.username, self.load_account), self.back_button])
         self.update()
 
     def load_email_change(self):
+        """Loads the email change form."""
         self.controls.clear()
         self.controls.extend([EmailChange(self.id.user_id, self.email, self.load_account), self.back_button])
         self.update()
 
     def load_password_change(self):
+        """Loads the password change form."""
         self.controls.clear()
         self.controls.extend([PassChange(self.id.user_id, self.password, self.load_account), self.back_button])
         self.update()
 
     async def logout(self, e=None):
+        """Logs the current user out.
+
+        Args:
+            e: Optional Flet event object.
+        """
         self.id.user_id = None
         await self.on_logout()
 
     async def delete_account(self, e=None):
+        """Deletes the current user's account.
+
+        Args:
+            e: Optional Flet event object.
+        """
         try:
             async with httpx.AsyncClient() as client:
                 result = await client.get(f"{API_ROOT}/account/{self.id.user_id}/delete")
@@ -114,12 +154,33 @@ class Summary(ft.Column):
             self.update()
 
     def toggle_confirm_window(self, e=None):
+        """Opens or closes the account deletion confirmation dialog.
+
+        Args:
+            e: Optional Flet event object.
+        """
         self.confirm_dialog.open = not self.confirm_dialog.open
         self._page.update()
         
 
 class UsernameChange(ft.Column):
+    """View for updating a user's username.
+
+    Attributes:
+        user_id: The current user's ID.
+        current_username: The user's existing username.
+        load_account: Callback to reload the account summary page.
+        username_field: Input field for entering a new username.
+        error_message: Text component used for displaying errors.
+    """
     def __init__(self, user_id, username, load_account):
+        """Initializes the username change form.
+
+        Args:
+            user_id: The current user's ID.
+            username: The current username.
+            load_account: Callback to reload the account summary page.
+        """
         super().__init__(horizontal_alignment=ft.CrossAxisAlignment.CENTER)
         self.user_id = user_id
         self.current_username = username
@@ -136,6 +197,15 @@ class UsernameChange(ft.Column):
         ]
 
     def create_input(self, label, hint):
+        """Creates a styled username input field.
+
+        Args:
+            label: The input field label.
+            hint: Placeholder text for the input field.
+
+        Returns:
+            ft.TextField: Configured text input field.
+        """
         return ft.TextField(
             label=label,
             hint_text=hint,
@@ -145,6 +215,11 @@ class UsernameChange(ft.Column):
         )
 
     async def submit(self, e):
+        """Validates and submits the username update request.
+
+        Args:
+            e: Flet event object.
+        """
         # Check if new username is same as current
         if self.username_field.value.strip() == self.current_username:
             self.error_message.value = "New username cannot be same as current username"
@@ -178,7 +253,23 @@ class UsernameChange(ft.Column):
         
 
 class EmailChange(ft.Column):
+    """View for updating a user's email address.
+    
+    Attributes:
+        user_id: The current user's ID.
+        email: The user's existing email address.
+        load_account: Callback to reload the account summary page.
+        email_field: Input field for entering a new email address.
+        error_message: Text component used for displaying errors.
+    """
     def __init__(self, user_id, email, load_account):
+        """Initializes the email change form.
+
+        Args:
+            user_id: The current user's ID.
+            email: The current email address.
+            load_account: Callback to reload the account summary page.
+        """
         super().__init__(horizontal_alignment=ft.CrossAxisAlignment.CENTER)
         self.user_id = user_id
         self.email = email
@@ -195,9 +286,26 @@ class EmailChange(ft.Column):
         ]
 
     def is_valid_email(self, email):
+        """Checks whether an email address is valid.
+
+        Args:
+            email: Email address to validate.
+
+        Returns:
+            re.Match | None: Regex match object if valid, otherwise None.
+        """
         return re.match(r'^[\w\.-]+@[\w\.-]+\.\w+$', email)
 
     def create_input(self, label, hint):
+        """Creates a styled email input field.
+
+        Args:
+            label: The input field label.
+            hint: Placeholder text for the input field.
+
+        Returns:
+            ft.TextField: Configured text input field.
+        """
         return ft.TextField(
             label=label,
             hint_text=hint,
@@ -207,6 +315,11 @@ class EmailChange(ft.Column):
         )
 
     async def submit(self, e):
+        """Validates and submits the email update request.
+
+        Args:
+            e: Flet event object.
+        """
         # Check if new email is same as current
         if self.email_field.value.strip() == self.email:
             self.error_message.value = "New email cannot be same as current email"
@@ -245,7 +358,24 @@ class EmailChange(ft.Column):
 
 
 class PassChange(ft.Column):
+    """View for updating a user's password.
+
+    Attributes:
+        user_id: The current user's ID.
+        password: The user's current hashed password.
+        load_account: Callback to reload the account summary page.
+        password_field: Input field for entering a new password.
+        confirm_password_field: Input field for confirming the new password.
+        error_message: Text component used for displaying errors.
+    """
     def __init__(self, user_id, password, load_account):
+        """Initializes the password change form.
+
+        Args:
+            user_id: The current user's ID.
+            password: The current hashed password.
+            load_account: Callback to reload the account summary page.
+        """
         super().__init__(horizontal_alignment=ft.CrossAxisAlignment.CENTER)
         self.user_id = user_id
         self.password = password
@@ -264,6 +394,16 @@ class PassChange(ft.Column):
         ]
 
     def create_input(self, label, hint, password=False):
+        """Creates a styled password input field.
+
+        Args:
+            label: The input field label.
+            hint: Placeholder text for the input field.
+            password: Whether the field should hide entered text.
+
+        Returns:
+            ft.TextField: Configured password input field.
+        """
         return ft.TextField(
             label=label,
             hint_text=hint,
@@ -275,6 +415,11 @@ class PassChange(ft.Column):
         )
 
     async def submit(self, e):
+        """Validates and submits the password update request.
+
+        Args:
+            e: Flet event object.
+        """
         # Check passowrd fields match
         if self.password_field.value != self.confirm_password_field.value:
             self.confirm_password_field.error_text = "Passwords do not match"

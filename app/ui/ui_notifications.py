@@ -3,7 +3,25 @@ import httpx
 from app.config import API_ROOT
 
 class FriendRequest(ft.Column):
+    """UI component for displaying and managing a friend request notification.
+
+    Attributes:
+        user_id (int): ID of the current user.
+        data (dict): Friend request notification data.
+        status (ft.Text): Displays the current request status.
+        accpet_button (ft.Button): Button for accepting the friend request.
+        deny_button (ft.Button): Button for denying the friend request.
+        error_message (ft.Text): Displays error messages.
+        controls (list): UI controls contained in the component.
+    """
     def __init__(self, data, user_id):
+        """
+        Initialize the FriendRequest component.
+
+        Args:
+            data (dict): Friend request notification data.
+            user_id (int): ID of the current user.
+        """
         super().__init__(horizontal_alignment=ft.CrossAxisAlignment.CENTER)
         self.user_id = user_id
         self.data = data
@@ -25,6 +43,12 @@ class FriendRequest(ft.Column):
             ]
 
     async def accept_request(self, e=None):
+        """
+        Accept a friend request.
+
+        Args:
+            e: Optional Flet event object.
+        """
         payload = {
             "user_id": self.user_id,
             "friend_id": self.data['from_user_id']
@@ -46,6 +70,12 @@ class FriendRequest(ft.Column):
             self.update()
 
     async def deny_request(self, e=None):
+        """
+        Deny a friend request.
+
+        Args:
+            e: Optional Flet event object.
+        """
         payload = {
             "user_id": self.user_id,
             "friend_id": self.data['from_user_id']
@@ -68,7 +98,25 @@ class FriendRequest(ft.Column):
 
 
 class CompInvite(ft.Column):
+    """UI component for displaying and managing competition invites.
+
+        Attributes:
+        user_id (int): ID of the current user.
+        data (dict): Competition invite data.
+        status (ft.Text): Displays the current invite status.
+        accpet_button (ft.Button): Button for accepting the invite.
+        deny_button (ft.Button): Button for denying the invite.
+        error_message (ft.Text): Displays error messages.
+        controls (list): UI controls contained in the component.
+    """
     def __init__(self, data, user_id):
+        """
+        Initialize the CompInvite component.
+
+        Args:
+            data (dict): Competition invite data.
+            user_id (int): ID of the current user.
+        """
         super().__init__(horizontal_alignment=ft.CrossAxisAlignment.CENTER)
         self.user_id = user_id
         self.data = data
@@ -90,6 +138,12 @@ class CompInvite(ft.Column):
             ]
 
     async def accept_invite(self, e=None):
+        """
+        Accept a competition invite.
+
+        Args:
+            e: Optional Flet event object.
+        """
         payload = {
             "user_id": self.user_id,
             "comp_id": self.data['competition_id']
@@ -111,6 +165,12 @@ class CompInvite(ft.Column):
             self.update()
 
     async def deny_invite(self, e=None):
+        """
+        Deny a competition invite.
+
+        Args:
+            e: Optional Flet event object.
+        """
         payload = {
             "user_id": self.user_id,
             "comp_id": self.data['competition_id']
@@ -133,7 +193,21 @@ class CompInvite(ft.Column):
 
 
 class CompDeadline(ft.Column):
+    """UI component for displaying competition deadline notifications.
+
+    Attributes:
+        user_id (int): ID of the current user.
+        data (dict): Competition deadline data.
+        controls (list): UI controls contained in the component.
+    """
     def __init__(self, data, user_id):
+        """
+        Initialize the CompDeadline component.
+
+        Args:
+            data (dict): Competition deadline data.
+            user_id (int): ID of the current user.
+        """
         super().__init__(horizontal_alignment=ft.CrossAxisAlignment.CENTER)
         self.user_id = user_id
         self.data = data
@@ -149,7 +223,24 @@ class CompDeadline(ft.Column):
 
 
 class NotificationManagerApp(ft.Column):
+    """Main notification manager UI for handling user notifications.
+
+    Attributes:
+        user_id (int): ID of the current user.
+        friend_requests (ft.Button): Button to load friend requests.
+        competition_invites (ft.Button): Button to load competition invites.
+        competition_deadlines (ft.Button): Button to load competition deadlines.
+        notification_list (ft.Column): Container for loaded notifications.
+        error_message (ft.Text): Displays error messages.
+        controls (list): UI controls contained in the component.
+    """
     def __init__(self, user_id):
+        """
+        Initialize the NotificationManagerApp.
+
+        Args:
+            user_id (int): ID of the current user.
+        """
         super().__init__(horizontal_alignment=ft.CrossAxisAlignment.CENTER)
         self.user_id = user_id
 
@@ -176,6 +267,12 @@ class NotificationManagerApp(ft.Column):
         ]
 
     async def load_friend_requests(self, e=None):
+        """
+        Load and display friend request notifications.
+
+        Args:
+            e: Optional Flet event object.
+        """
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.get(f"{API_ROOT}/notifications/friends/{self.user_id}")
@@ -195,6 +292,12 @@ class NotificationManagerApp(ft.Column):
             self.update()
 
     async def load_competition_invites(self, e=None):
+        """
+        Load and display competition invite notifications.
+
+        Args:
+            e: Optional Flet event object.
+        """
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.get(f"{API_ROOT}/notifications/invites/{self.user_id}")
@@ -214,6 +317,12 @@ class NotificationManagerApp(ft.Column):
             self.update()
 
     async def load_competition_deadlines(self, e=None):
+        """
+        Load and display competition deadline notifications.
+
+        Args:
+            e: Optional Flet event object.
+        """
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.get(f"{API_ROOT}/notifications/deadlines/{self.user_id}")
