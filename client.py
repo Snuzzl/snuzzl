@@ -1,3 +1,4 @@
+import inspect
 import flet as ft
 from app.ui.ui_metrics import MetricManagerApp
 from app.ui.ui_social import SocialManagerApp
@@ -59,12 +60,16 @@ async def main(page: ft.Page):
 
     async def task_menu(e=None):
         page.controls.clear()
-        app = SnuzzlTaskApp()
+        app = SnuzzlTaskApp(id.user_id)
         page.add(ft.Column([menu_button, app]))
         page.update()
         # Load existing tasks when page loads.
         catalog_tile = app.controls[4]  # CatalogBrowser is after title, divider, form, divider.
-        await catalog_tile.load_catalog()
+        load_catalog = getattr(catalog_tile, "load_catalog", None)
+        if callable(load_catalog):
+            maybe_result = load_catalog()
+            if inspect.isawaitable(maybe_result):
+                await maybe_result
         await app.my_tasks.load_tasks()
 
     async def metric_menu(e=None):
@@ -91,7 +96,11 @@ async def main(page: ft.Page):
 
     async def rewards_challenges_menu(e=None):
         page.controls.clear()
-        app = RewardsChallengesScreen(id.user_id, on_back=menu, on_open_tasks=task_menu)
+        app = RewardsChallengesScreen(
+            id.user_id,
+            on_back=menu,
+            on_open_tasks=lambda chall_id=None: page.run_task(task_menu),
+        )
         page.add(ft.Column([menu_button, app]))
         page.update()
         await app.load_all_data()
