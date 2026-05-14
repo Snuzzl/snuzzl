@@ -426,21 +426,54 @@ def test_accept_invite_null_inputs(nm, db_mock):
 
 
 # ------------------------------------------------------------------
-# deny_invite wrong types / null inputs
+# deny_invite
 # ------------------------------------------------------------------
 
-# def test_deny_invite_success(nm, db_mock):
-#     db_mock.read_record.return_value = [{"invite_id": 3, "user_id": 5, "competition_id": 7, "status": "pending"}]
-#     db_mock.update_record.return_value = 1
-#     res = nm.deny_invite(user_id=5, comp_id=7)
-#     db_mock.update_record.assert_called_once()
-#     args, kwargs = db_mock.update_record.call_args
-#     assert kwargs.get("status") == "denied" or kwargs == {"status": "denied"}
-#     assert res is True or res == {"success": True}
+def test_deny_invite_exists(nm, db_mock):
+    class FakeInviteRecord:
+        def __init__(self, user_id, comp_id, status="Pending"):
+            self.user_id = user_id
+            self.comp_id = comp_id
+            self.comp_status = status
+    nm.comp_participant_table.get_or_none.return_value = FakeInviteRecord(
+        user_id=1, comp_id=10, status="Pending"
+    )
+    res = nm.deny_invite(user_id=1, comp_id=10)
+    assert res == {"success": True, "message": "Competition invite denied"}
+    nm._db.delete_record.assert_called_once_with(
+        nm.comp_participant_table, (1, 10)
+    )
+
+@pytest.mark.xfail(reason="invite not found handling may vary", strict=False)
+def test_deny_invite_does_not_exist(nm, db_mock):
+    nm.comp_participant_table.get_or_none.return_value = None
+    res = nm.deny_invite(user_id=1, comp_id=10)
+    assert res == {
+        "success": False,
+        "error": "Competition invite doesn't exist"
+    }
+    nm._db.delete_record.assert_not_called()
 
 @pytest.mark.xfail(reason="wrong types should raise", strict=False)
+def test_deny_invite_wrong_types(nm, db_mock):
+    bad_user_id = {"invalid": True}
+    bad_comp_id = ["not", "valid"]
+    nm.comp_participant_table.get_or_none.return_value = None
+    res = nm.deny_invite(user_id=bad_user_id, comp_id=bad_comp_id)
+    assert res == {
+        "success": False,
+        "error": "Competition invite doesn't exist"
+    }
+    nm._db.delete_record.assert_not_called()
 
 @pytest.mark.xfail(reason="null inputs should raise", strict=False)
-# def test_deny_invite_null_inputs_xfail(nm):
-#     with pytest.raises(Exception):
-#         nm.deny_invite(user_id=None, comp_id=None)
+def test_deny_invite_null_inputs(nm, db_mock):
+    user_id = None
+    comp_id = None
+    nm.comp_participant_table.get_or_none.return_value = None
+    res = nm.deny_invite(user_id=user_id, comp_id=comp_id)
+    assert res == {
+        "success": False,
+        "error": "Competition invite doesn't exist"
+    }
+    nm._db.delete_record.assert_not_called()
