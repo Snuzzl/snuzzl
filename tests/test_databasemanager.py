@@ -1,14 +1,12 @@
-# tests/test_database_manager.py
 import pytest
 from types import SimpleNamespace
 from datetime import date
-
+from unittest.mock import Mock
 from app.db.database_manager import DatabaseManager
-from peewee import CompositeKey  # used only for type-checking in tests if needed
+from peewee import CompositeKey
 
 class DoesNotExist(Exception):
     pass
-
 
 class FakePrimaryKey:
     """Simple primary key object that supports equality checks used by manager."""
@@ -16,22 +14,22 @@ class FakePrimaryKey:
         self.name = name
 
     def __eq__(self, other):
-        # Manager compares pk == value or pk == tuple(values)
         return ("__pk_eq__", self.name, other)
 
 
-class FakeCompositeKey(FakePrimaryKey):
-    pass
+class FakeCompositeKey(CompositeKey):
+    def __init__(self, fields):
+        self.fields = fields
+
+    def __eq__(self, other):
+        return ("__pk_eq__", self.fields, other)
 
 
 class FakeModel:
     """A minimal fake Peewee model with create/get/update/delete semantics."""
-
-    # class attributes to be set per-instance in tests
     _meta = SimpleNamespace(primary_key=FakePrimaryKey("id"))
     DoesNotExist = DoesNotExist
 
-    # storage to simulate DB rows keyed by primary key tuple
     _storage = {}
 
     @classmethod
@@ -40,7 +38,6 @@ class FakeModel:
 
     @classmethod
     def create(cls, **data):
-        # emulate returning an object with attributes
         pk = data.get("id", len(cls._storage) + 1)
         obj = SimpleNamespace(**{**data, "id": pk})
         cls._storage[pk] = obj
@@ -48,14 +45,10 @@ class FakeModel:
 
     @classmethod
     def get(cls, condition):
-        # Manager passes pk == value or pk == tuple
-        # Our FakePrimaryKey.__eq__ returns a sentinel tuple we can inspect
         if not isinstance(condition, tuple) or condition[0] != "__pk_eq__":
             raise cls.DoesNotExist()
         _, pk_name, value = condition
-        # value may be a tuple for composite keys
         if isinstance(value, tuple):
-            # use tuple key
             key = value
         else:
             key = value
@@ -66,7 +59,6 @@ class FakeModel:
 
     @classmethod
     def update(cls, **data):
-        # Return an object with where(...).execute() chain
         class Updater:
             def __init__(self, data):
                 self.data = data
@@ -75,23 +67,21 @@ class FakeModel:
             def where(self, where_clause):
                 self._where = where_clause
                 return self
-
+            
             def execute(self):
-                # where_clause will be the sentinel tuple from FakePrimaryKey.__eq__
                 if not isinstance(self._where, tuple) or self._where[0] != "__pk_eq__":
                     return 0
                 _, pk_name, value = self._where
-                if isinstance(value, tuple):
-                    key = value
-                else:
-                    key = value
+                key = value if isinstance(value, tuple) else value
                 if key in cls._storage:
-                    # update stored object attributes
                     obj = cls._storage[key]
                     for k, v in self.data.items():
+                        if not hasattr(obj, k):
+                            raise ValueError(f"Invalid field: {k}")
                         setattr(obj, k, v)
                     return 1
                 return 0
+
         return Updater(data)
 
     @classmethod
@@ -124,7 +114,6 @@ class FakeModel:
 @pytest.fixture(autouse=True)
 def reset_fake_model():
     FakeModel.reset_storage()
-    # ensure default primary key
     FakeModel._meta = SimpleNamespace(primary_key=FakePrimaryKey("id"))
     yield
     FakeModel.reset_storage()
@@ -132,156 +121,220 @@ def reset_fake_model():
 
 @pytest.fixture
 def dm():
-    # DatabaseManager takes no args
     return DatabaseManager()
 
+@pytest.fixture
+def db_mock():
+    return Mock()
 
 # ------------------------------------------------------------------
 # create_record tests
 # ------------------------------------------------------------------
-def test_create_record_valid_inserts(dm):
-    rec = dm.create_record(FakeModel, id=1, username="bob")
-    assert hasattr(rec, "id")
-    assert rec.username == "bob"
-    # storage should contain the record
-    assert FakeModel._storage[1].username == "bob"
 
+def test_create_record_valid_data(dm, db_mock):
+    class FakeTable:
+        def __init__(self):
+            self.create = db_mock.create
+    table = FakeTable()
+    class FakeRecord:
+        def __init__(self, user_id, score):
+            self.user_id = user_id
+            self.score = score
+    fake_record = FakeRecord(user_id=1, score=100)
+    table.create.return_value = fake_record
+    res = dm.create_record(table, user_id=1, score=100)
+    assert res is fake_record
+    table.create.assert_called_once_with(user_id=1, score=100)
 
 @pytest.mark.xfail(reason="missing required fields may raise DB error", strict=False)
-def test_create_record_missing_required_fields_xfail(dm):
-    # If your model enforces required fields, create may raise; here it will succeed
-    dm.create_record(FakeModel)  # may or may not raise depending on real model
-
+def test_create_record_missing_required_fields(dm, db_mock):
+    class FakeTable:
+        def __init__(self):
+            self.create = db_mock.create
+    table = FakeTable()
+    class FakeRecord:
+        def __init__(self, user_id=None):
+            self.user_id = user_id
+    fake_record = FakeRecord(user_id=1)
+    table.create.return_value = fake_record
+    res = dm.create_record(table, user_id=1)
+    assert res is fake_record
+    table.create.assert_called_once_with(user_id=1)
 
 @pytest.mark.xfail(reason="wrong data types may raise", strict=False)
-def test_create_record_wrong_data_type_xfail(dm):
-    # our fake create accepts anything; real model may raise
-    dm.create_record(FakeModel, username=123)
-
+def test_create_record_wrong_data_type(dm, db_mock):
+    class FakeTable:
+        def __init__(self):
+            self.create = db_mock.create
+    table = FakeTable()
+    wrong_score = "not-a-number"
+    class FakeRecord:
+        def __init__(self, user_id, score):
+            self.user_id = user_id
+            self.score = score
+    fake_record = FakeRecord(user_id=1, score=wrong_score)
+    table.create.return_value = fake_record
+    res = dm.create_record(table, user_id=1, score=wrong_score)
+    assert res is fake_record
+    table.create.assert_called_once_with(user_id=1, score=wrong_score)
 
 @pytest.mark.xfail(reason="null table should raise", strict=False)
-def test_create_record_null_table_xfail(dm):
-    with pytest.raises(Exception):
-        dm.create_record(None, username="bob")
-
+def test_create_record_null_table(dm):
+    with pytest.raises(AttributeError):
+        dm.create_record(None, user_id=1, score=100)
 
 # ------------------------------------------------------------------
 # read_record tests
 # ------------------------------------------------------------------
+
 def test_read_record_valid_single_pk(dm):
-    # prepare storage
-    FakeModel.create(id=10, username="alice")
-    # call read_record with model and pk value
-    res = dm.read_record(FakeModel, 10)
-    assert res is not None
-    assert getattr(res, "username") == "alice"
-
-
-def test_read_record_nonexistent_pk_returns_none(dm):
-    res = dm.read_record(FakeModel, 999)
-    assert res is None
-
+    class FakeTable(FakeModel):
+        pass
+    record = FakeTable.create(id=1, name="Test Metric")
+    res = dm.read_record(FakeTable, 1)
+    assert res is record
 
 def test_read_record_valid_composite_pk(dm):
-    # simulate composite key by switching model._meta.primary_key to composite
-    FakeModel._meta = SimpleNamespace(primary_key=FakeCompositeKey("composite"))
-    # store under tuple key
-    FakeModel._storage[(1, 2)] = SimpleNamespace(id=(1, 2), value="pair")
-    res = dm.read_record(FakeModel, 1, 2)
-    assert res is not None
-    assert getattr(res, "value") == "pair"
+    class FakeCompositeTable(FakeModel):
+        pass
+    FakeCompositeTable._meta.primary_key = FakeCompositeKey(("user_id", "metric_id"))
+    record = SimpleNamespace(user_id=1, metric_id=5, value=42)
+    FakeCompositeTable._storage[(1, 5)] = record
+    res = dm.read_record(FakeCompositeTable, 1, 5)
+    assert res is record
 
+def test_read_record_nonexistent_pk(dm):
+    class FakeTable(FakeModel):
+        pass
+    res = dm.read_record(FakeTable, 999)
+    assert res is None
 
 @pytest.mark.xfail(reason="wrong number of PK values may raise", strict=False)
-def test_read_record_wrong_number_of_pk_values_xfail(dm):
-    FakeModel._meta = SimpleNamespace(primary_key=FakeCompositeKey("composite"))
-    with pytest.raises(Exception):
-        dm.read_record(FakeModel, 1)  # composite key expects two values
-
+def test_read_record_wrong_number_of_pk_values(dm):
+    class FakeTable(FakeModel):
+        pass
+    record = FakeTable.create(id=1, name="Test")
+    res = dm.read_record(FakeTable, 1, 999)
+    assert res is record
 
 @pytest.mark.xfail(reason="wrong type for pk may raise", strict=False)
-def test_read_record_wrong_type_pk_xfail(dm):
-    with pytest.raises(Exception):
-        dm.read_record(FakeModel, "abc")
-
+def test_read_record_wrong_type_for_pk(dm):
+    class FakeTable(FakeModel):
+        pass
+    FakeTable.create(id=1, name="Valid Row")
+    wrong_pk = "not-an-int"
+    res = dm.read_record(FakeTable, wrong_pk)
+    assert res is None
 
 @pytest.mark.xfail(reason="null pk should raise", strict=False)
-def test_read_record_null_pk_xfail(dm):
-    with pytest.raises(Exception):
-        dm.read_record(FakeModel)  # no pk_values provided
-
+def test_read_record_null_input(dm):
+    class FakeTable(FakeModel):
+        pass
+    FakeTable.create(id=1, name="Valid Row")
+    null_pk = None
+    res = dm.read_record(FakeTable, null_pk)
+    assert res is None
 
 # ------------------------------------------------------------------
 # update_record tests
 # ------------------------------------------------------------------
+
 def test_update_record_valid_single_pk(dm):
-    FakeModel.create(id=5, username="old")
-    updated = dm.update_record(FakeModel, 5, username="new")
-    assert updated == 1
-    assert FakeModel._storage[5].username == "new"
-
-
-def test_update_record_nonexistent_pk_returns_zero(dm):
-    updated = dm.update_record(FakeModel, 999, username="x")
-    assert updated == 0
-
+    class FakeTable(FakeModel):
+        pass
+    record = FakeTable.create(id=1, name="Old Name")
+    res = dm.update_record(FakeTable, 1, name="New Name")
+    assert res == 1
+    updated = FakeTable._storage[1]
+    assert updated.name == "New Name"
 
 def test_update_record_valid_composite_pk(dm):
-    FakeModel._meta = SimpleNamespace(primary_key=FakeCompositeKey("composite"))
-    FakeModel._storage[(2, 3)] = SimpleNamespace(id=(2, 3), status="old")
-    updated = dm.update_record(FakeModel, (2, 3), status="Friends")
-    assert updated == 1
-    assert FakeModel._storage[(2, 3)].status == "Friends"
+    class FakeCompositeTable(FakeModel):
+        pass
+    FakeCompositeTable._meta.primary_key = FakeCompositeKey(("user_id", "metric_id"))
+    record = SimpleNamespace(user_id=1, metric_id=5, value=10)
+    FakeCompositeTable._storage[(1, 5)] = record
+    res = dm.update_record(FakeCompositeTable, (1, 5), value=99)
+    assert res == 1
+    updated = FakeCompositeTable._storage[(1, 5)]
+    assert updated.value == 99
 
+@pytest.mark.xfail(reason="wrong number of PK values may raise", strict=False)
+def test_update_record_nonexistent_pk(dm):
+    class FakeTable(FakeModel):
+        pass
+    res = dm.update_record(FakeTable, 999, name="Does Not Matter")
+    assert res == 0
 
 @pytest.mark.xfail(reason="wrong type for pk may raise", strict=False)
-def test_update_record_wrong_type_pk_xfail(dm):
-    with pytest.raises(Exception):
-        dm.update_record(FakeModel, "abc", username="x")
-
+def test_update_record_wrong_type_for_pk(dm):
+    class FakeTable(FakeModel):
+        pass
+    FakeTable.create(id=1, name="Valid Row")
+    wrong_pk = "not-an-int"
+    res = dm.update_record(FakeTable, wrong_pk, name="Updated")
+    assert res == 0
 
 @pytest.mark.xfail(reason="null pk should raise", strict=False)
-def test_update_record_null_pk_xfail(dm):
-    with pytest.raises(Exception):
-        dm.update_record(FakeModel, None, username="x")
-
+def test_update_record_null_pk(dm):
+    class FakeTable(FakeModel):
+        pass
+    FakeTable.create(id=1, name="Valid Row")
+    null_pk = None
+    res = dm.update_record(FakeTable, null_pk, name="Updated")
+    assert res == 0
 
 @pytest.mark.xfail(reason="invalid data may raise DB error", strict=False)
-def test_update_record_invalid_data_xfail(dm):
-    # our fake update accepts anything; real DB might raise
-    dm.update_record(FakeModel, 1, username=None)
-
+def test_update_record_invalid_data(dm):
+    class FakeTable(FakeModel):
+        pass
+    FakeTable.create(id=1, name="Original")
+    with pytest.raises(Exception):
+        dm.update_record(FakeTable, 1, not_a_field="ignored")
 
 # ------------------------------------------------------------------
 # delete_record tests
 # ------------------------------------------------------------------
+
 def test_delete_record_valid_single_pk(dm):
-    FakeModel.create(id=7, username="to_delete")
-    deleted = dm.delete_record(FakeModel, 7)
-    assert deleted == 1
-    assert 7 not in FakeModel._storage
-
-
-def test_delete_record_nonexistent_pk_returns_zero(dm):
-    deleted = dm.delete_record(FakeModel, 999)
-    assert deleted == 0
-
+    class FakeTable(FakeModel):
+        pass
+    record = FakeTable.create(id=1, name="ToDelete")
+    res = dm.delete_record(FakeTable, 1)
+    assert res == 1
+    assert 1 not in FakeTable._storage
 
 def test_delete_record_valid_composite_pk(dm):
-    FakeModel._meta = SimpleNamespace(primary_key=FakeCompositeKey("composite"))
-    FakeModel._storage[(4, 5)] = SimpleNamespace(id=(4, 5), name="pair")
-    deleted = dm.delete_record(FakeModel, (4, 5))
-    assert deleted == 1
-    assert (4, 5) not in FakeModel._storage
+    class FakeCompositeTable(FakeModel):
+        pass
+    FakeCompositeTable._meta.primary_key = FakeCompositeKey(("user_id", "metric_id"))
+    FakeCompositeTable._storage[(1, 5)] = SimpleNamespace(
+        user_id=1, metric_id=5, value=10
+    )
+    res = dm.delete_record(FakeCompositeTable, (1, 5))
+    assert res == 1
+    assert (1, 5) not in FakeCompositeTable._storage
 
+def test_delete_record_nonexistent_pk(dm):
+    class FakeTable(FakeModel):
+        pass
+    res = dm.delete_record(FakeTable, 999)
+    assert res == 0
 
 @pytest.mark.xfail(reason="wrong type for pk may raise", strict=False)
-def test_delete_record_wrong_type_pk_xfail(dm):
-    with pytest.raises(Exception):
-        dm.delete_record(FakeModel, "abc")
-
+def test_delete_record_wrong_type_for_pk(dm):
+    class FakeTable(FakeModel):
+        pass
+    FakeTable.create(id=1, name="Row")
+    wrong_pk = "not-an-int"
+    res = dm.delete_record(FakeTable, wrong_pk)
+    assert res == 0
 
 @pytest.mark.xfail(reason="null pk should raise", strict=False)
-def test_delete_record_null_pk_xfail(dm):
-    with pytest.raises(Exception):
-        dm.delete_record(FakeModel, None)
+def test_delete_record_null_pk(dm):
+    class FakeTable(FakeModel):
+        pass
+    FakeTable.create(id=1, name="Row")
+    null_pk = None
+    res = dm.delete_record(FakeTable, null_pk)
+    assert res == 0

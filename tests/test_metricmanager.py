@@ -1,4 +1,3 @@
-# tests/test_metric_manager.py
 import pytest
 from unittest.mock import MagicMock, patch
 from datetime import date, timedelta
