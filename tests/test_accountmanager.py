@@ -37,7 +37,7 @@ def am(db_mock):
 # ------------------------------------------------------------------
 
 def test_register_user_valid(am, db_mock):
-    db_mock.create_record.return_value = FakeRecord(user_id=10, username="dylan")
+    db_mock.create_record.return_value = FakeRecord(user_id=10, username="chris")
     res = am.register_user(username="dylan", password="pass123", email="d@x.com")
 
     db_mock.create_record.assert_called_once()
