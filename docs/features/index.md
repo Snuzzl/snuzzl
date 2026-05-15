@@ -7,8 +7,7 @@ Learn more in the [Technical Docs](../technical-docs/index.md) about how these f
 - [Tasks](tasks.md)
 - [Metrics](metrics.md)
 - [Wellbeing Score](metrics.md#wellbeing-score)
-- [Challenges](challenges-rewards.md)
-- [Rewards](challenges-rewards.md#rewards)
+- [Challenges & Rewards](challenges-rewards.md)
 - [Competitions](competitions.md)
 
 ## Supporting Features

@@ -32,3 +32,10 @@ RewardManager handles reward records and user reward state. It supports create/r
 
 1. Summary: count, summary, by_type, task_ids, task_names.
 2. Progress: required_total, completed_total, pending_task_ids, completion_ratio.
+
+## Challenges
+::: app.managers.challenge_manager
+
+## Rewards
+
+::: app.managers.reward_manager

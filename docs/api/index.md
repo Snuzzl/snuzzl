@@ -5,8 +5,7 @@ This section lists all of the API endpoints used by featrues of the app.
 ## Features
 - [Tasks](tasks.md)
 - [Metrics](metrics.md)
-- [Challenges](challenges-rewards.md)
-- [Rewards](challenges-rewards.md#rewards)
+- [Challenges & Rewards](challenges-rewards.md)
 - [Competitions](competitions.md)
 
 ## Supporting Features

@@ -4,3 +4,5 @@ mkdocstrings-python
 fastapi[standard]
 peewee
 flet
+pytest
+pytest-md-report

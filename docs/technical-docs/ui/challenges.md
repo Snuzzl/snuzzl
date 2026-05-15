@@ -34,3 +34,8 @@ Error handling approach:
 ## Related Tests
 
 Relevant helper behavior is tested in tests/test_challenges_utils.py.
+
+## Challenges
+::: app.ui.ui_challenges  
+
+::: app.ui.challenges_utils  
